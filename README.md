@@ -1,6 +1,6 @@
 # Xboard-XBClient
 
-用于接收 Google AdMob 激励广告 Server-side verification 回调，验证 Google 签名与客户端 `custom_data`，并按配置向 Xboard 用户余额发放，或基于 Xboard 礼品卡模板自动创建一次性临时兑换码后兑换。
+用于对接 XBClient 客户端与 Xboard 面板：向 App 下发激励广告开关、网页支付入口开关和 AdMob SSV 参数；接收并验证 Google AdMob 激励广告 Server-side verification 回调后按配置发放余额或自动创建临时礼品卡并兑换；同时向 Xboard-Oauth 插件提供原生 App OAuth 回调 scheme。
 
 ## 安装
 
