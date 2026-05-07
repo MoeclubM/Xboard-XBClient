@@ -1,0 +1,61 @@
+{
+    "name": "Xboard-XBClient",
+    "code": "xbclient",
+    "version": "1.2.0",
+    "description": "验证 Google AdMob 激励广告 SSV 回调，并按配置向用户余额发放，或基于 Xboard 礼品卡模板自动创建一次性临时兑换码后兑换。",
+    "author": "MoeclubM",
+    "type": "feature",
+    "require": {
+        "xboard": ">=1.0.0"
+    },
+    "config": {
+        "enable_reward_ads": {
+            "type": "boolean",
+            "default": true,
+            "label": "开启 App 激励广告",
+            "description": "关闭后 App 不展示看广告入口，SSV 回调也不会发放奖励。"
+        },
+        "enable_app_payment": {
+            "type": "boolean",
+            "default": false,
+            "label": "开启 App 网页支付入口",
+            "description": "下发给 App 控制网页支付入口是否展示；支付仍走 Xboard 网页和现有支付插件，不在 App 内置验单。"
+        },
+        "rewarded_ad_unit_id": {
+            "type": "string",
+            "default": "",
+            "label": "AdMob 激励广告单元 ID",
+            "description": "服务端下发给 App，并用于校验 SSV 回调；填写完整广告单元 ID，例如 ca-app-pub-xxx/yyy。"
+        },
+        "ssv_secret": {
+            "type": "string",
+            "default": "",
+            "label": "客户端 SSV 令牌签名密钥",
+            "description": "用于给 App 获取的 custom_data 做 HMAC 签名。请使用随机 32 字节以上密钥，不要公开。"
+        },
+        "reward_mode": {
+            "type": "string",
+            "default": "balance",
+            "label": "广告奖励发放方式",
+            "description": "填写 balance 时按 AdMob SSV 回调中的 reward_amount 直接发放余额；填写 gift_card 时使用下方礼品卡模板 ID 自动创建一次性临时兑换码并兑换。"
+        },
+        "gift_card_template_id": {
+            "type": "string",
+            "default": "",
+            "label": "广告奖励礼品卡模板 ID",
+            "description": "reward_mode 为 gift_card 时必填。插件会在每次 SSV 验证通过后基于该模板创建 max_usage=1 的临时兑换码并立即为当前用户兑换。"
+        },
+        "token_ttl_seconds": {
+            "type": "string",
+            "default": 900,
+            "label": "SSV 令牌有效期秒数",
+            "description": "App 获取 custom_data 后需在有效期内完成广告观看。"
+        },
+        "callback_max_age_seconds": {
+            "type": "string",
+            "default": 3600,
+            "label": "SSV 回调最大时间偏移秒数",
+            "description": "Google 回调 timestamp 与服务器当前时间差超过该值将拒绝。"
+        }
+    }
+}
