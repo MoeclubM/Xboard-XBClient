@@ -1,7 +1,7 @@
 {
   "name": "Xboard-XBClient",
   "code": "xbclient",
-  "version": "1.3.0",
+  "version": "1.0.0",
   "description": "验证 Google AdMob 激励广告 SSV 回调，并按配置向用户余额发放，或基于 Xboard 礼品卡模板自动创建一次性临时兑换码后兑换。",
   "author": "MoeclubM",
   "type": "feature",
