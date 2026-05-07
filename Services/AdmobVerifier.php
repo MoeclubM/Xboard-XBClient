@@ -31,7 +31,7 @@ class AdmobVerifier
             throw new \RuntimeException('AdMob 插件未配置广告单元 ID');
         }
         $adUnit = (string) $params['ad_unit'];
-        if ($adUnit !== $expectedAdUnit && !str_ends_with($expectedAdUnit, '/' . $adUnit)) {
+        if ($adUnit !== $expectedAdUnit) {
             throw new \RuntimeException('AdMob SSV 广告单元不匹配');
         }
 

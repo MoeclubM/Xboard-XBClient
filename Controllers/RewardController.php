@@ -24,23 +24,23 @@ class RewardController extends PluginController
         $config = $this->getConfig();
         $adEnabled = filter_var($config['enable_reward_ads'] ?? true, FILTER_VALIDATE_BOOL);
         $paymentEnabled = filter_var($config['enable_app_payment'] ?? false, FILTER_VALIDATE_BOOL);
-        if (!$adEnabled) {
+        $adUnitId = trim((string) ($config['rewarded_ad_unit_id'] ?? ''));
+        $rewardMode = (string) ($config['reward_mode'] ?? 'balance');
+        if (!in_array($rewardMode, ['balance', 'gift_card'], true)) {
+            return $this->fail([500, 'AdMob 插件奖励发放方式配置错误']);
+        }
+        if (
+            !$adEnabled
+            || $adUnitId === ''
+            || trim((string) ($config['ssv_secret'] ?? '')) === ''
+            || ($rewardMode === 'gift_card' && (int) ($config['gift_card_template_id'] ?? 0) <= 0)
+        ) {
             return $this->success([
                 'ad_enabled' => false,
                 'payment_enabled' => $paymentEnabled,
             ]);
         }
-        $adUnitId = trim((string) ($config['rewarded_ad_unit_id'] ?? ''));
-        if ($adUnitId === '') {
-            return $this->fail([500, 'AdMob 插件未配置激励广告单元 ID']);
-        }
-        $rewardMode = (string) ($config['reward_mode'] ?? 'balance');
-        if (!in_array($rewardMode, ['balance', 'gift_card'], true)) {
-            return $this->fail([500, 'AdMob 插件奖励发放方式配置错误']);
-        }
-        if ($rewardMode === 'gift_card' && (int) ($config['gift_card_template_id'] ?? 0) <= 0) {
-            return $this->fail([500, 'AdMob 插件未配置广告奖励礼品卡模板 ID']);
-        }
+
         $verifier = new AdmobVerifier($config);
         $user = $request->user();
         try {
@@ -116,6 +116,7 @@ class RewardController extends PluginController
                     'code' => GiftCardCode::generateCode('ADMOB'),
                     'status' => GiftCardCode::STATUS_UNUSED,
                     'expires_at' => time() + 600,
+                    'usage_count' => 0,
                     'max_usage' => 1,
                     'metadata' => [
                         'source' => 'admob',
