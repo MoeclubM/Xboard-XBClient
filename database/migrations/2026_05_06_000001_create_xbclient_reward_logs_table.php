@@ -12,12 +12,8 @@ return new class extends Migration
             $table->id();
             $table->string('transaction_id', 128)->unique();
             $table->unsignedBigInteger('user_id')->index();
-            $table->string('reward_mode', 32)->default('balance')->index();
             $table->string('ad_network', 64)->nullable();
             $table->string('ad_unit', 128);
-            $table->integer('reward_amount')->default(0);
-            $table->string('reward_item', 64)->default('');
-            $table->integer('balance_amount')->default(0);
             $table->unsignedBigInteger('gift_card_template_id')->nullable()->index();
             $table->unsignedBigInteger('gift_card_code_id')->nullable()->index();
             $table->text('custom_data');

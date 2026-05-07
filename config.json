@@ -40,17 +40,11 @@
       "label": "客户端 SSV 令牌签名密钥",
       "description": "用于给 App 获取的 custom_data 做 HMAC 签名。请使用随机 32 字节以上密钥，不要公开。"
     },
-    "reward_mode": {
-      "type": "string",
-      "default": "balance",
-      "label": "广告奖励发放方式",
-      "description": "填写 balance 时按 AdMob SSV 回调中的 reward_amount 直接发放余额；填写 gift_card 时使用下方礼品卡模板 ID 自动创建一次性临时兑换码并兑换。"
-    },
     "gift_card_template_id": {
       "type": "string",
       "default": "",
       "label": "广告奖励礼品卡模板 ID",
-      "description": "reward_mode 为 gift_card 时必填。插件会在每次 SSV 验证通过后基于该模板创建 max_usage=1 的临时兑换码并立即为当前用户兑换。"
+      "description": "必填。SSV 验证通过后，插件会基于该模板创建 max_usage=1 的临时兑换码并立即为当前用户兑换；余额、流量、套餐等奖励均由礼品卡模板决定。"
     },
     "token_ttl_seconds": {
       "type": "string",

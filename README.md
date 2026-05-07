@@ -1,6 +1,6 @@
 # Xboard-XBClient
 
-用于对接 XBClient 客户端与 Xboard 面板：向 App 下发激励广告开关、网页支付入口开关和 AdMob SSV 参数；接收并验证 Google AdMob 激励广告 Server-side verification 回调后按配置发放余额或自动创建临时礼品卡并兑换；同时向 Xboard-Oauth 插件提供原生 App OAuth 回调 scheme。
+用于对接 XBClient 客户端与 Xboard 面板：向 App 下发激励广告开关、网页支付入口开关和 AdMob SSV 参数；接收并验证 Google AdMob 激励广告 Server-side verification 回调后自动创建临时礼品卡并兑换，余额、流量、套餐等奖励均由礼品卡模板决定；同时向 Xboard-Oauth 插件提供原生 App OAuth 回调 scheme。
 
 ## 安装
 
@@ -15,8 +15,7 @@
    - `OAuth 原生 App 回调 Scheme`：给 OAuth 插件提供 App deep link scheme；当前 Android Manifest 仍是 `xbclient`，如 App 侧修改 scheme 再同步改这里。
    - `AdMob 激励广告单元 ID`：完整广告单元 ID，例如 `ca-app-pub-xxx/yyy`。该值会下发给 App，同时用于校验 SSV 回调。
    - `客户端 SSV 令牌签名密钥`：随机 32 字节以上密钥。
-   - `广告奖励发放方式`：`balance` 按 AdMob SSV 回调中的 `reward_amount` 写入余额；`gift_card` 使用礼品卡模板自动创建一次性临时兑换码并兑换。
-   - `广告奖励礼品卡模板 ID`：`reward_mode=gift_card` 时必填。模板内的奖励由 Xboard 原礼品卡逻辑发放。
+   - `广告奖励礼品卡模板 ID`：必填。插件会创建一次性临时兑换码并立即兑换；余额、流量、套餐等奖励由 Xboard 原礼品卡模板决定。
 4. 在 AdMob 后台配置广告单元：
    - 设置 SSV 回调地址：
 
@@ -48,7 +47,6 @@ Authorization: Bearer <auth_data>
 - `ad_enabled`：App 是否展示激励广告入口。
 - `payment_enabled`：App 是否展示网页支付入口。
 - `rewarded_ad_unit_id`：App 加载激励广告使用的广告单元 ID。
-- `reward_mode`：服务端实际发放方式，`balance` 或 `gift_card`。
 - `ssv_user_id`：传入 Google Mobile Ads SDK 的 SSV userId。
 - `ssv_custom_data`：传入 Google Mobile Ads SDK 的 SSV customData。
 
@@ -56,8 +54,7 @@ App 奖励文案和观看完成后的奖励内容以 Google Mobile Ads SDK 从 A
 
 ## 奖励发放
 
-- `balance`：SSV 通过后调用 Xboard `UserService::addBalance()`，金额来自 Google 已签名回调里的 `reward_amount`。
-- `gift_card`：SSV 通过后先基于配置的模板 ID 创建 `max_usage=1`、短有效期的临时兑换码，再调用 Xboard `GiftCardService` 为当前用户兑换。插件不重新实现礼品卡规则，仍遵守原有模板状态、用户条件、使用次数和邀请奖励逻辑。
+SSV 通过后，插件只基于配置的礼品卡模板 ID 创建 `max_usage=1`、短有效期的临时兑换码，再调用 Xboard `GiftCardService` 为当前用户兑换。插件不直接记录或下发奖励内容，也不单独实现余额发放；余额、流量、套餐、有效期等奖励全部由原礼品卡模板决定，并继续遵守原有模板状态、用户条件、使用次数和邀请奖励逻辑。
 
 支付入口只负责控制 App 是否展示购买入口。App 点击后使用本机已保存的 `auth_data` 调 Xboard 原版 `/api/v1/user/getQuickLoginUrl` 生成快捷网页登录地址，并携带 `redirect=plan` 进入网页购买订阅页；用户支付继续走 Xboard 网页与现有支付插件。
 
