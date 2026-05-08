@@ -1,7 +1,7 @@
 {
   "name": "Xboard-XBClient",
   "code": "xbclient",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "为 XBClient 客户端提供 Xboard 服务端对接能力：下发激励广告、开屏广告与套餐支付开关，验证 AdMob 激励广告 SSV 回调并通过礼品卡模板发放奖励。",
   "author": "MoeclubM",
   "type": "feature",
@@ -9,6 +9,24 @@
     "xboard": ">=1.0.0"
   },
   "config": {
+    "enable_reward_ads": {
+      "type": "boolean",
+      "default": true,
+      "label": "开启 App 激励广告",
+      "description": "关闭后 App 不展示看广告入口，SSV 回调也不会发放奖励。"
+    },
+    "enable_app_open_ads": {
+      "type": "boolean",
+      "default": false,
+      "label": "开启 App 开屏广告",
+      "description": "关闭后 App 不加载或展示开屏广告。"
+    },
+    "enable_app_payment": {
+      "type": "boolean",
+      "default": true,
+      "label": "开启 App 网页支付",
+      "description": "下发给 App 控制套餐是否允许跳转网页支付；关闭后套餐页仍显示，但 App 只允许余额足额抵扣。"
+    },
     "ssv_secret": {
       "type": "string",
       "default": "",
@@ -38,24 +56,6 @@
       "default": "",
       "label": "广告奖励礼品卡模板 ID",
       "description": "必填。SSV 验证通过后，插件会基于该模板创建 max_usage=1 的临时兑换码并立即为当前用户兑换；余额、流量、套餐等奖励均由礼品卡模板决定。"
-    },
-    "enable_app_open_ads": {
-      "type": "boolean",
-      "default": false,
-      "label": "开启 App 开屏广告",
-      "description": "关闭后 App 不加载或展示开屏广告。"
-    },
-    "enable_reward_ads": {
-      "type": "boolean",
-      "default": true,
-      "label": "开启 App 激励广告",
-      "description": "关闭后 App 不展示看广告入口，SSV 回调也不会发放奖励。"
-    },
-    "enable_app_payment": {
-      "type": "boolean",
-      "default": true,
-      "label": "开启 App 网页支付",
-      "description": "下发给 App 控制套餐是否允许跳转网页支付；关闭后套餐页仍显示，但 App 只允许余额足额抵扣。"
     },
     "callback_max_age_seconds": {
       "type": "string",
