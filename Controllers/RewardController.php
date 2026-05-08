@@ -33,6 +33,7 @@ class RewardController extends PluginController
             'payment_enabled' => $paymentEnabled,
             'app_open_ad_enabled' => filter_var($config['enable_app_open_ads'] ?? false, FILTER_VALIDATE_BOOL) && $appOpenAdUnitId !== '',
             'app_open_ad_unit_id' => $appOpenAdUnitId,
+            'github_project_url' => trim((string) ($config['github_project_url'] ?? '')),
         ];
         if (!$adEnabled || $adUnitId === '' || trim((string) ($config['ssv_secret'] ?? '')) === '' || $giftCardTemplateId <= 0) {
             return $this->success([

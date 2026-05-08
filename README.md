@@ -13,6 +13,7 @@
    - `开启 App 激励广告`：控制 App 是否展示看广告入口；关闭后 SSV 回调不会发放奖励。
    - `开启 App 开屏广告`：控制 App 是否加载和展示开屏广告。
    - `开启 App 网页支付`：控制 App 点击套餐时是否允许跳 Xboard 网页支付；关闭后套餐页仍显示，只允许余额足额抵扣。
+   - `GitHub Release 项目地址`：App 启动后按该项目检查最新 Release，可填写 `https://github.com/owner/repo` 或 `owner/repo`；留空则不检查。
    - `客户端 SSV 令牌签名密钥`：随机 32 字节以上密钥。
    - `SSV 令牌有效期秒数`：App 获取 custom_data 后需在有效期内完成广告观看。
    - `AdMob 开屏广告单元 ID`：完整广告单元 ID，例如 `ca-app-pub-xxx/yyy`。
@@ -50,6 +51,7 @@ Authorization: Bearer <auth_data>
 - `payment_enabled`：App 是否允许套餐跳转网页支付；为 `false` 时 App 仍展示套餐页，但只允许余额足额抵扣。
 - `app_open_ad_enabled`：App 是否加载和展示开屏广告。
 - `app_open_ad_unit_id`：App 加载开屏广告使用的广告单元 ID。
+- `github_project_url`：App 检查 GitHub Release 更新使用的项目地址。
 - `rewarded_ad_unit_id`：App 加载激励广告使用的广告单元 ID。
 - `ssv_user_id`：传入 Google Mobile Ads SDK 的 SSV userId。
 - `ssv_custom_data`：传入 Google Mobile Ads SDK 的 SSV customData。
