@@ -1,8 +1,8 @@
 {
   "name": "Xboard-XBClient",
   "code": "xbclient",
-  "version": "0.0.4",
-  "description": "为 XBClient 客户端提供 Xboard 服务端对接能力：下发广告与套餐页开关，验证 AdMob 激励广告 SSV 回调并通过礼品卡模板发放奖励。",
+  "version": "0.0.5",
+  "description": "为 XBClient 客户端提供 Xboard 服务端对接能力：下发激励广告、开屏广告与套餐支付开关，验证 AdMob 激励广告 SSV 回调并通过礼品卡模板发放奖励。",
   "author": "MoeclubM",
   "type": "feature",
   "require": {
@@ -18,8 +18,20 @@
     "enable_app_payment": {
       "type": "boolean",
       "default": true,
-      "label": "开启 App 套餐页",
-      "description": "下发给 App 控制套餐页是否展示；开启后 App 点击具体套餐会跳转 Xboard 网页套餐支付流程，不在 App 内置验单。"
+      "label": "开启 App 网页支付",
+      "description": "下发给 App 控制套餐是否允许跳转网页支付；关闭后套餐页仍显示，但 App 只允许余额足额抵扣。"
+    },
+    "enable_app_open_ads": {
+      "type": "boolean",
+      "default": false,
+      "label": "开启 App 开屏广告",
+      "description": "关闭后 App 不加载或展示开屏广告。"
+    },
+    "app_open_ad_unit_id": {
+      "type": "string",
+      "default": "",
+      "label": "AdMob 开屏广告单元 ID",
+      "description": "服务端下发给 App 用于加载开屏广告；填写完整广告单元 ID，例如 ca-app-pub-xxx/yyy。"
     },
     "rewarded_ad_unit_id": {
       "type": "string",

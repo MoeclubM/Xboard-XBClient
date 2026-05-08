@@ -1,6 +1,6 @@
 # Xboard-XBClient
 
-用于对接 XBClient 客户端与 Xboard 面板：向 App 下发激励广告开关、套餐页开关和 AdMob SSV 参数；接收并验证 Google AdMob 激励广告 Server-side verification 回调后自动创建临时礼品卡并兑换，余额、流量、套餐等奖励均由礼品卡模板决定。
+用于对接 XBClient 客户端与 Xboard 面板：向 App 下发激励广告、开屏广告、网页支付开关和 AdMob SSV 参数；接收并验证 Google AdMob 激励广告 Server-side verification 回调后自动创建临时礼品卡并兑换，余额、流量、套餐等奖励均由礼品卡模板决定。
 
 ## 安装
 
@@ -11,7 +11,8 @@
 2. 在 Xboard 管理后台安装并启用插件。
 3. 配置：
    - `开启 App 激励广告`：控制 App 是否展示看广告入口；关闭后 SSV 回调不会发放积分。
-   - `开启 App 套餐页`：控制 App 是否展示套餐页；默认开启，App 点击具体套餐后跳 Xboard 网页套餐支付流程。
+   - `开启 App 网页支付`：控制 App 点击套餐时是否允许跳 Xboard 网页支付；关闭后套餐页仍显示，只允许余额足额抵扣。
+   - `开启 App 开屏广告` / `AdMob 开屏广告单元 ID`：控制 App 是否加载和展示开屏广告。
    - `AdMob 激励广告单元 ID`：完整广告单元 ID，例如 `ca-app-pub-xxx/yyy`。该值会下发给 App，同时用于校验 SSV 回调。
    - `客户端 SSV 令牌签名密钥`：随机 32 字节以上密钥。
    - `广告奖励礼品卡模板 ID`：必填。插件会创建一次性临时兑换码并立即兑换；余额、流量、套餐等奖励由 Xboard 原礼品卡模板决定。
@@ -24,7 +25,7 @@ https://你的站点域名/api/v1/admob/google/reward/ssv
 
    - 每日展示次数、最小间隔等观看频率限制在 AdMob 后台用频次上限配置，插件不重复实现。
 
-未配置广告单元、SSV 密钥或礼品卡模板时，`/api/v1/admob/user/config` 会返回 `ad_enabled=false`，同时保留 `payment_enabled`，App 会隐藏广告入口但不影响套餐页。
+未配置激励广告单元、SSV 密钥或礼品卡模板时，`/api/v1/admob/user/config` 会返回 `ad_enabled=false`，同时保留 `payment_enabled` 和开屏广告配置，App 会隐藏激励广告入口但不影响套餐页。
 
 生成签名密钥示例：
 
@@ -44,7 +45,9 @@ Authorization: Bearer <auth_data>
 返回值包含：
 
 - `ad_enabled`：App 是否展示激励广告入口。
-- `payment_enabled`：App 是否展示套餐页。
+- `payment_enabled`：App 是否允许套餐跳转网页支付；为 `false` 时 App 仍展示套餐页，但只允许余额足额抵扣。
+- `app_open_ad_enabled`：App 是否加载和展示开屏广告。
+- `app_open_ad_unit_id`：App 加载开屏广告使用的广告单元 ID。
 - `rewarded_ad_unit_id`：App 加载激励广告使用的广告单元 ID。
 - `ssv_user_id`：传入 Google Mobile Ads SDK 的 SSV userId。
 - `ssv_custom_data`：传入 Google Mobile Ads SDK 的 SSV customData。
@@ -55,7 +58,7 @@ App 奖励文案和观看完成后的奖励内容以 Google Mobile Ads SDK 从 A
 
 SSV 通过后，插件只基于配置的礼品卡模板 ID 创建 `max_usage=1`、短有效期的临时兑换码，再调用 Xboard `GiftCardService` 为当前用户兑换，并确认兑换码已标记为当前用户使用一次。插件不直接记录或下发奖励内容，也不单独实现余额发放；余额、流量、套餐、有效期等奖励全部由原礼品卡模板决定，并继续遵守原有模板状态、用户条件、使用次数和邀请奖励逻辑。
 
-支付入口只负责控制 App 是否展示套餐页。App 点击具体套餐后使用本机已保存的 `auth_data` 调 Xboard 原版 `/api/v1/user/getQuickLoginUrl` 生成快捷网页登录地址，并携带 `redirect=plan/{plan_id}` 进入网页套餐支付流程；用户支付继续走 Xboard 网页与现有支付插件。
+网页支付开关只负责控制 App 是否允许跳转 Xboard 网页支付。开关开启时，App 点击套餐后使用本机已保存的 `auth_data` 调 Xboard 原版 `/api/v1/user/getQuickLoginUrl` 生成快捷网页登录地址，并携带 `redirect=plan/{plan_id}` 进入网页套餐支付流程；开关关闭时，App 不跳网页，只使用原版 `/api/v1/user/order/save` 与 `/api/v1/user/order/checkout` 完成余额足额抵扣订单。
 
 ## 接口排布与认证
 

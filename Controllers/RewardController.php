@@ -23,12 +23,18 @@ class RewardController extends PluginController
         $config = $this->getConfig();
         $adEnabled = filter_var($config['enable_reward_ads'] ?? true, FILTER_VALIDATE_BOOL);
         $paymentEnabled = filter_var($config['enable_app_payment'] ?? true, FILTER_VALIDATE_BOOL);
+        $appOpenAdUnitId = trim((string) ($config['app_open_ad_unit_id'] ?? ''));
         $adUnitId = trim((string) ($config['rewarded_ad_unit_id'] ?? ''));
         $giftCardTemplateId = (int) ($config['gift_card_template_id'] ?? 0);
+        $baseConfig = [
+            'payment_enabled' => $paymentEnabled,
+            'app_open_ad_enabled' => filter_var($config['enable_app_open_ads'] ?? false, FILTER_VALIDATE_BOOL) && $appOpenAdUnitId !== '',
+            'app_open_ad_unit_id' => $appOpenAdUnitId,
+        ];
         if (!$adEnabled || $adUnitId === '' || trim((string) ($config['ssv_secret'] ?? '')) === '' || $giftCardTemplateId <= 0) {
             return $this->success([
+                ...$baseConfig,
                 'ad_enabled' => false,
-                'payment_enabled' => $paymentEnabled,
             ]);
         }
 
@@ -40,8 +46,8 @@ class RewardController extends PluginController
         }
 
         return $this->success([
+            ...$baseConfig,
             'ad_enabled' => true,
-            'payment_enabled' => $paymentEnabled,
             'rewarded_ad_unit_id' => $adUnitId,
             'ssv_user_id' => (string) $user->id,
             'ssv_custom_data' => $customData,
