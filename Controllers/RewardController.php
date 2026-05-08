@@ -22,7 +22,7 @@ class RewardController extends PluginController
 
         $config = $this->getConfig();
         $adEnabled = filter_var($config['enable_reward_ads'] ?? true, FILTER_VALIDATE_BOOL);
-        $paymentEnabled = filter_var($config['enable_app_payment'] ?? false, FILTER_VALIDATE_BOOL);
+        $paymentEnabled = filter_var($config['enable_app_payment'] ?? true, FILTER_VALIDATE_BOOL);
         $adUnitId = trim((string) ($config['rewarded_ad_unit_id'] ?? ''));
         $giftCardTemplateId = (int) ($config['gift_card_template_id'] ?? 0);
         if (!$adEnabled || $adUnitId === '' || trim((string) ($config['ssv_secret'] ?? '')) === '' || $giftCardTemplateId <= 0) {
@@ -75,8 +75,10 @@ class RewardController extends PluginController
     private function grantReward(array $verified, array $config, Request $request): array
     {
         return DB::transaction(function () use ($verified, $config, $request) {
-            $user = $verified['user'];
-            $user->newQuery()->whereKey($user->id)->lockForUpdate()->first();
+            $user = $verified['user']->newQuery()->whereKey($verified['user']->id)->lockForUpdate()->first();
+            if (!$user) {
+                throw new \RuntimeException('AdMob SSV 用户不存在');
+            }
             $transactionId = $verified['transaction_id'];
             $existing = XbclientRewardLog::where('transaction_id', $transactionId)->first();
             if ($existing) {
@@ -106,13 +108,21 @@ class RewardController extends PluginController
                 ],
             ]);
 
-            (new GiftCardService($giftCardCode->code))
+            $redeemResult = (new GiftCardService($giftCardCode->code))
                 ->setUser($user)
                 ->validate()
                 ->redeem([
                     'user_agent' => $request->userAgent(),
                     'notes' => 'AdMob reward transaction ' . $transactionId,
                 ]);
+            $giftCardCode->refresh();
+            if (
+                (int) $giftCardCode->status !== GiftCardCode::STATUS_USED
+                || (int) $giftCardCode->usage_count !== 1
+                || (int) $giftCardCode->user_id !== (int) $user->id
+            ) {
+                throw new \RuntimeException('AdMob 礼品卡兑换未完成');
+            }
 
             $this->writeLog($verified, $request, 'credited', '', $giftCardTemplateId, $giftCardCode->id);
 
@@ -120,6 +130,7 @@ class RewardController extends PluginController
                 'credited' => true,
                 'gift_card_template_id' => $giftCardTemplateId,
                 'gift_card_code_id' => $giftCardCode->id,
+                'template_name' => $redeemResult['template_name'] ?? '',
             ];
         });
     }

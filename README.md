@@ -11,8 +11,8 @@
 2. 在 Xboard 管理后台安装并启用插件。
 3. 配置：
    - `开启 App 激励广告`：控制 App 是否展示看广告入口；关闭后 SSV 回调不会发放积分。
-   - `开启 App 网页支付入口`：控制 App 是否展示打开站点网页支付的入口；支付仍走 Xboard 网页和现有支付插件。
-   - `OAuth 原生 App 回调 Scheme`：给 OAuth 插件提供 App deep link scheme；当前 Android Manifest 仍是 `xbclient`，如 App 侧修改 scheme 再同步改这里。
+   - `开启 App 网页支付入口`：控制 App 是否展示打开站点网页支付的入口；默认开启，支付仍走 Xboard 网页和现有支付插件。
+   - `OAuth 原生 App 回调 Scheme`：给 OAuth 插件提供 App deep link scheme；当前 SecOne 构建为 `secone`，如 App 侧修改 scheme 再同步改这里。
    - `AdMob 激励广告单元 ID`：完整广告单元 ID，例如 `ca-app-pub-xxx/yyy`。该值会下发给 App，同时用于校验 SSV 回调。
    - `客户端 SSV 令牌签名密钥`：随机 32 字节以上密钥。
    - `广告奖励礼品卡模板 ID`：必填。插件会创建一次性临时兑换码并立即兑换；余额、流量、套餐等奖励由 Xboard 原礼品卡模板决定。
@@ -54,7 +54,7 @@ App 奖励文案和观看完成后的奖励内容以 Google Mobile Ads SDK 从 A
 
 ## 奖励发放
 
-SSV 通过后，插件只基于配置的礼品卡模板 ID 创建 `max_usage=1`、短有效期的临时兑换码，再调用 Xboard `GiftCardService` 为当前用户兑换。插件不直接记录或下发奖励内容，也不单独实现余额发放；余额、流量、套餐、有效期等奖励全部由原礼品卡模板决定，并继续遵守原有模板状态、用户条件、使用次数和邀请奖励逻辑。
+SSV 通过后，插件只基于配置的礼品卡模板 ID 创建 `max_usage=1`、短有效期的临时兑换码，再调用 Xboard `GiftCardService` 为当前用户兑换，并确认兑换码已标记为当前用户使用一次。插件不直接记录或下发奖励内容，也不单独实现余额发放；余额、流量、套餐、有效期等奖励全部由原礼品卡模板决定，并继续遵守原有模板状态、用户条件、使用次数和邀请奖励逻辑。
 
 支付入口只负责控制 App 是否展示购买入口。App 点击后使用本机已保存的 `auth_data` 调 Xboard 原版 `/api/v1/user/getQuickLoginUrl` 生成快捷网页登录地址，并携带 `redirect=plan` 进入网页购买订阅页；用户支付继续走 Xboard 网页与现有支付插件。
 
@@ -65,7 +65,7 @@ OAuth 登录/注册仍由 `Xboard-Oauth` 插件负责；本插件只通过通用
 启用本插件后，OAuth 插件处理 `client=app` 回调时会优先拿到这里配置的 `OAuth 原生 App 回调 Scheme`，默认回跳：
 
 ```text
-xbclient://oauth?verify=临时登录令牌&scene=login
+secone://oauth?verify=临时登录令牌&scene=login
 ```
 
 如果以后 App 的 Android Manifest 改成其他 scheme，只需要同步修改本插件配置。
