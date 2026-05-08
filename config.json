@@ -1,8 +1,8 @@
 {
   "name": "Xboard-XBClient",
   "code": "xbclient",
-  "version": "0.0.3",
-  "description": "为 XBClient 客户端提供 Xboard 服务端对接能力：下发广告与网页支付开关，验证 AdMob 激励广告 SSV 回调并发放奖励，同时向 OAuth 插件提供原生 App 回调 scheme。",
+  "version": "0.0.1",
+  "description": "为 XBClient 客户端提供 Xboard 服务端对接能力：下发广告与套餐页开关，验证 AdMob 激励广告 SSV 回调并通过礼品卡模板发放奖励。",
   "author": "MoeclubM",
   "type": "feature",
   "require": {
@@ -18,15 +18,8 @@
     "enable_app_payment": {
       "type": "boolean",
       "default": true,
-      "label": "开启 App 网页支付入口",
-      "description": "下发给 App 控制网页支付入口是否展示；支付仍走 Xboard 网页和现有支付插件，不在 App 内置验单。"
-    },
-    "oauth_native_callback_scheme": {
-      "type": "string",
-      "default": "secone",
-      "label": "OAuth 原生 App 回调 Scheme",
-      "placeholder": "secone",
-      "description": "提供给 OAuth 插件的原生 App deep link scheme；需要与 Android Manifest 中的 scheme 一致。当前 SecOne 构建为 secone。"
+      "label": "开启 App 套餐页",
+      "description": "下发给 App 控制套餐页是否展示；开启后 App 点击具体套餐会跳转 Xboard 网页套餐支付流程，不在 App 内置验单。"
     },
     "rewarded_ad_unit_id": {
       "type": "string",
