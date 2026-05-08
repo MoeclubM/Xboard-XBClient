@@ -4,6 +4,7 @@ namespace Plugin\Xbclient\Controllers;
 
 use App\Http\Controllers\PluginController;
 use App\Models\GiftCardCode;
+use App\Models\GiftCardUsage;
 use App\Services\Auth\LoginService;
 use App\Services\GiftCardService;
 use Illuminate\Http\JsonResponse;
@@ -84,6 +85,41 @@ class RewardController extends PluginController
             'verify' => $this->extractVerifyFromQuickLoginUrl($loginUrl),
             'plan_id' => $planId,
         ]));
+    }
+
+    public function rewardHistory(Request $request): JsonResponse
+    {
+        $this->clearConfigCache();
+        if ($error = $this->beforePluginAction()) {
+            return $this->fail($error);
+        }
+
+        $logs = XbclientRewardLog::where('user_id', $request->user()->id)
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get();
+        $codeIds = $logs->pluck('gift_card_code_id')->filter()->values();
+        $codes = GiftCardCode::whereIn('id', $codeIds)->get()->keyBy('id');
+        $usages = GiftCardUsage::whereIn('code_id', $codeIds)->get()->keyBy('code_id');
+
+        return $this->success($logs->map(function (XbclientRewardLog $log) use ($codes, $usages) {
+            $code = $codes->get($log->gift_card_code_id);
+            $usage = $usages->get($log->gift_card_code_id);
+
+            return [
+                'id' => $log->id,
+                'transaction_id' => $log->transaction_id,
+                'status' => $log->status,
+                'gift_card_template_id' => (int) ($log->gift_card_template_id ?? 0),
+                'gift_card_code_id' => (int) ($log->gift_card_code_id ?? 0),
+                'gift_card_code' => $code ? $code->code : '',
+                'gift_card_status' => $code ? (int) $code->status : null,
+                'usage_id' => $usage ? (int) $usage->id : 0,
+                'usage_count' => $code ? (int) $code->usage_count : 0,
+                'used_at' => $code ? (int) ($code->used_at ?? 0) : 0,
+                'created_at' => $log->created_at ? $log->created_at->timestamp : 0,
+            ];
+        })->values());
     }
 
     public function planPaymentBridge(Request $request): Response
