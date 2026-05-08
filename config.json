@@ -1,7 +1,7 @@
 {
   "name": "Xboard-XBClient",
   "code": "xbclient",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "为 XBClient 客户端提供 Xboard 服务端对接能力：下发激励广告、开屏广告与套餐支付开关，验证 AdMob 激励广告 SSV 回调并通过礼品卡模板发放奖励。",
   "author": "MoeclubM",
   "type": "feature",
@@ -9,23 +9,17 @@
     "xboard": ">=1.0.0"
   },
   "config": {
-    "enable_reward_ads": {
-      "type": "boolean",
-      "default": true,
-      "label": "开启 App 激励广告",
-      "description": "关闭后 App 不展示看广告入口，SSV 回调也不会发放奖励。"
+    "ssv_secret": {
+      "type": "string",
+      "default": "",
+      "label": "客户端 SSV 令牌签名密钥",
+      "description": "用于给 App 获取的 custom_data 做 HMAC 签名。请使用随机 32 字节以上密钥，不要公开。"
     },
-    "enable_app_payment": {
-      "type": "boolean",
-      "default": true,
-      "label": "开启 App 网页支付",
-      "description": "下发给 App 控制套餐是否允许跳转网页支付；关闭后套餐页仍显示，但 App 只允许余额足额抵扣。"
-    },
-    "enable_app_open_ads": {
-      "type": "boolean",
-      "default": false,
-      "label": "开启 App 开屏广告",
-      "description": "关闭后 App 不加载或展示开屏广告。"
+    "token_ttl_seconds": {
+      "type": "string",
+      "default": "900",
+      "label": "SSV 令牌有效期秒数",
+      "description": "App 获取 custom_data 后需在有效期内完成广告观看。"
     },
     "app_open_ad_unit_id": {
       "type": "string",
@@ -39,23 +33,29 @@
       "label": "AdMob 激励广告单元 ID",
       "description": "服务端下发给 App，并用于校验 SSV 回调；填写完整广告单元 ID，例如 ca-app-pub-xxx/yyy。"
     },
-    "ssv_secret": {
-      "type": "string",
-      "default": "",
-      "label": "客户端 SSV 令牌签名密钥",
-      "description": "用于给 App 获取的 custom_data 做 HMAC 签名。请使用随机 32 字节以上密钥，不要公开。"
-    },
     "gift_card_template_id": {
       "type": "string",
       "default": "",
       "label": "广告奖励礼品卡模板 ID",
       "description": "必填。SSV 验证通过后，插件会基于该模板创建 max_usage=1 的临时兑换码并立即为当前用户兑换；余额、流量、套餐等奖励均由礼品卡模板决定。"
     },
-    "token_ttl_seconds": {
-      "type": "string",
-      "default": "900",
-      "label": "SSV 令牌有效期秒数",
-      "description": "App 获取 custom_data 后需在有效期内完成广告观看。"
+    "enable_app_open_ads": {
+      "type": "boolean",
+      "default": false,
+      "label": "开启 App 开屏广告",
+      "description": "关闭后 App 不加载或展示开屏广告。"
+    },
+    "enable_reward_ads": {
+      "type": "boolean",
+      "default": true,
+      "label": "开启 App 激励广告",
+      "description": "关闭后 App 不展示看广告入口，SSV 回调也不会发放奖励。"
+    },
+    "enable_app_payment": {
+      "type": "boolean",
+      "default": true,
+      "label": "开启 App 网页支付",
+      "description": "下发给 App 控制套餐是否允许跳转网页支付；关闭后套餐页仍显示，但 App 只允许余额足额抵扣。"
     },
     "callback_max_age_seconds": {
       "type": "string",
