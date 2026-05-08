@@ -52,13 +52,13 @@ Authorization: Bearer <auth_data>
 - `ssv_user_id`：传入 Google Mobile Ads SDK 的 SSV userId。
 - `ssv_custom_data`：传入 Google Mobile Ads SDK 的 SSV customData。
 
-App 奖励文案和观看完成后的奖励内容以 Google Mobile Ads SDK 从 AdMob 返回的 RewardItem 为准，插件不再向 App 下发奖励数量或奖励名称。
+插件不向 App 下发奖励数量或奖励名称；App 只负责展示广告和携带 SSV 参数。
 
 ## 奖励发放
 
 SSV 通过后，插件只基于配置的礼品卡模板 ID 创建 `max_usage=1`、短有效期的临时兑换码，再调用 Xboard `GiftCardService` 为当前用户兑换，并确认兑换码已标记为当前用户使用一次。插件不直接记录或下发奖励内容，也不单独实现余额发放；余额、流量、套餐、有效期等奖励全部由原礼品卡模板决定，并继续遵守原有模板状态、用户条件、使用次数和邀请奖励逻辑。
 
-网页支付开关只负责控制 App 是否允许跳转 Xboard 网页支付。开关开启时，App 点击套餐后使用本机已保存的 `auth_data` 调 Xboard 原版 `/api/v1/user/getQuickLoginUrl` 生成快捷网页登录地址，并携带 `redirect=plan/{plan_id}` 进入网页套餐支付流程；开关关闭时，App 不跳网页，只使用原版 `/api/v1/user/order/save` 与 `/api/v1/user/order/checkout` 完成余额足额抵扣订单。
+网页支付开关只负责控制 App 是否允许跳转 Xboard 网页支付。开关开启时，App 点击套餐后调用 `/api/v1/admob/user/plan-payment` 生成一次性网页支付桥接地址，浏览器会写入当前 App 用户登录态并进入 `/#/plan/{plan_id}`；开关关闭时，App 不跳网页，只使用原版 `/api/v1/user/order/save` 与 `/api/v1/user/order/checkout` 完成余额足额抵扣订单。
 
 ## 接口排布与认证
 

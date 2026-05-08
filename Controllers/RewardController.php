@@ -4,9 +4,11 @@ namespace Plugin\Xbclient\Controllers;
 
 use App\Http\Controllers\PluginController;
 use App\Models\GiftCardCode;
+use App\Services\Auth\LoginService;
 use App\Services\GiftCardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Plugin\Xbclient\Models\XbclientRewardLog;
@@ -16,6 +18,7 @@ class RewardController extends PluginController
 {
     public function config(Request $request): JsonResponse
     {
+        $this->clearConfigCache();
         if ($error = $this->beforePluginAction()) {
             return $this->fail($error);
         }
@@ -54,8 +57,54 @@ class RewardController extends PluginController
         ]);
     }
 
+    public function planPayment(Request $request): JsonResponse
+    {
+        $this->clearConfigCache();
+        if ($error = $this->beforePluginAction()) {
+            return $this->fail($error);
+        }
+
+        $config = $this->getConfig();
+        if (!filter_var($config['enable_app_payment'] ?? true, FILTER_VALIDATE_BOOL)) {
+            return $this->fail([400, 'App 网页支付未开启']);
+        }
+
+        $planId = (int) $request->input('plan_id');
+        if ($planId <= 0) {
+            return $this->fail([400, '套餐 ID 无效']);
+        }
+
+        $loginUrl = app(LoginService::class)->generateQuickLoginUrl($request->user(), 'plan/' . $planId);
+        if (!$loginUrl) {
+            return $this->fail([500, '生成网页登录地址失败']);
+        }
+
+        return $this->success($this->frontendBaseUrl() . '/api/v1/admob/web/plan-payment?' . http_build_query([
+            'verify' => $this->extractVerifyFromQuickLoginUrl($loginUrl),
+            'plan_id' => $planId,
+        ]));
+    }
+
+    public function planPaymentBridge(Request $request): Response
+    {
+        $verify = trim((string) $request->query('verify'));
+        $planId = (int) $request->query('plan_id');
+        $target = '/#/plan/' . $planId;
+        $html = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>正在打开套餐</title></head><body><p>正在打开套餐支付页面...</p><script>'
+            . 'const verify=' . json_encode($verify, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ';'
+            . 'const target=' . json_encode($target, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ';'
+            . 'fetch("/api/v1/passport/auth/token2Login?verify="+encodeURIComponent(verify),{headers:{Accept:"application/json"}})'
+            . '.then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.message||"网页登录失败");return body;})'
+            . '.then(body=>{const auth=body&&body.data&&body.data.auth_data;if(!auth)throw new Error("网页登录响应缺少 auth_data");localStorage.setItem("VUE_NAIVE_ACCESS_TOKEN",JSON.stringify({value:auth,time:Date.now(),expire:Date.now()+21600*1000}));location.replace(target);})'
+            . '.catch(error=>{document.body.textContent="套餐支付打开失败："+error.message;});'
+            . '</script></body></html>';
+
+        return response($html, 200)->header('Content-Type', 'text/html; charset=UTF-8');
+    }
+
     public function ssv(Request $request): JsonResponse
     {
+        $this->clearConfigCache();
         if ($error = $this->beforePluginAction()) {
             return response()->json(['status' => 'fail', 'message' => $error[1]], 400);
         }
@@ -165,5 +214,20 @@ class RewardController extends PluginController
             'user_agent' => $request->userAgent(),
             'rewarded_at' => now(),
         ]);
+    }
+
+    private function extractVerifyFromQuickLoginUrl(string $loginUrl): string
+    {
+        preg_match('/[?&]verify=([^&]+)/', $loginUrl, $matches);
+        if (empty($matches[1])) {
+            throw new \RuntimeException('快捷登录地址缺少 verify');
+        }
+
+        return urldecode($matches[1]);
+    }
+
+    private function frontendBaseUrl(): string
+    {
+        return rtrim((string) (admin_setting('app_url') ?: config('app.url') ?: url('/')), '/');
     }
 }
