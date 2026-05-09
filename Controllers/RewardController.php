@@ -25,37 +25,20 @@ class RewardController extends PluginController
         }
 
         $config = $this->getConfig();
-        $adEnabled = filter_var($config['enable_reward_ads'] ?? true, FILTER_VALIDATE_BOOL);
-        $paymentEnabled = filter_var($config['enable_app_payment'] ?? true, FILTER_VALIDATE_BOOL);
+        $verifier = new AdmobVerifier($config);
+        $user = $request->user();
+        $planReward = $this->rewardClientConfig($verifier, $user->id, AdmobVerifier::SCENE_PLAN, 'plan');
+        $pointsReward = $this->rewardClientConfig($verifier, $user->id, AdmobVerifier::SCENE_POINTS, 'points');
         $appOpenAdUnitId = trim((string) ($config['app_open_ad_unit_id'] ?? ''));
-        $adUnitId = trim((string) ($config['rewarded_ad_unit_id'] ?? ''));
-        $giftCardTemplateId = (int) ($config['gift_card_template_id'] ?? 0);
-        $baseConfig = [
-            'payment_enabled' => $paymentEnabled,
+
+        return $this->success([
+            'payment_enabled' => filter_var($config['enable_app_payment'] ?? true, FILTER_VALIDATE_BOOL),
             'app_open_ad_enabled' => filter_var($config['enable_app_open_ads'] ?? false, FILTER_VALIDATE_BOOL) && $appOpenAdUnitId !== '',
             'app_open_ad_unit_id' => $appOpenAdUnitId,
             'github_project_url' => trim((string) ($config['github_project_url'] ?? '')),
-        ];
-        if (!$adEnabled || $adUnitId === '' || trim((string) ($config['ssv_secret'] ?? '')) === '' || $giftCardTemplateId <= 0) {
-            return $this->success([
-                ...$baseConfig,
-                'ad_enabled' => false,
-            ]);
-        }
-
-        $user = $request->user();
-        try {
-            $customData = (new AdmobVerifier($config))->makeCustomData($user->id);
-        } catch (\Throwable $e) {
-            return $this->fail([500, $e->getMessage()]);
-        }
-
-        return $this->success([
-            ...$baseConfig,
-            'ad_enabled' => true,
-            'rewarded_ad_unit_id' => $adUnitId,
-            'ssv_user_id' => (string) $user->id,
-            'ssv_custom_data' => $customData,
+            'ad_enabled' => $planReward['plan_reward_ad_enabled'] || $pointsReward['points_reward_ad_enabled'],
+            ...$planReward,
+            ...$pointsReward,
         ]);
     }
 
@@ -94,6 +77,7 @@ class RewardController extends PluginController
             return $this->fail($error);
         }
 
+        $config = $this->getConfig();
         $logs = XbclientRewardLog::where('user_id', $request->user()->id)
             ->orderByDesc('id')
             ->limit(20)
@@ -102,14 +86,16 @@ class RewardController extends PluginController
         $codes = GiftCardCode::whereIn('id', $codeIds)->get()->keyBy('id');
         $usages = GiftCardUsage::whereIn('code_id', $codeIds)->get()->keyBy('code_id');
 
-        return $this->success($logs->map(function (XbclientRewardLog $log) use ($codes, $usages) {
+        return $this->success($logs->map(function (XbclientRewardLog $log) use ($codes, $usages, $config) {
             $code = $codes->get($log->gift_card_code_id);
             $usage = $usages->get($log->gift_card_code_id);
 
             return [
                 'id' => $log->id,
+                'scene' => $this->sceneFromLog($log, $config),
                 'transaction_id' => $log->transaction_id,
                 'status' => $log->status,
+                'error' => $log->error,
                 'gift_card_template_id' => (int) ($log->gift_card_template_id ?? 0),
                 'gift_card_code_id' => (int) ($log->gift_card_code_id ?? 0),
                 'gift_card_code' => $code ? $code->code : '',
@@ -131,12 +117,18 @@ class RewardController extends PluginController
 
         $config = $this->getConfig();
         $customData = trim((string) $request->input('custom_data'));
-        $payload = (new AdmobVerifier($config))->verifyClientCustomData($customData);
+        $verifier = new AdmobVerifier($config);
+        $payload = $verifier->verifyClientCustomData($customData);
         if ((int) ($payload['user_id'] ?? 0) !== (int) $request->user()->id) {
             return $this->fail([400, 'AdMob SSV custom_data 用户不匹配']);
         }
+        $scene = (string) $payload['scene'];
+        $settings = $verifier->rewardSettings($scene);
+        if (!$settings['enabled']) {
+            return $this->fail([400, 'AdMob 激励广告未开启']);
+        }
 
-        $transactionId = 'pending:' . hash('sha256', $customData);
+        $transactionId = 'pending:' . $scene . ':' . hash('sha256', $customData);
         if (XbclientRewardLog::where('custom_data', $customData)->exists()) {
             return $this->success(true);
         }
@@ -145,8 +137,8 @@ class RewardController extends PluginController
             [
                 'user_id' => $request->user()->id,
                 'ad_network' => '',
-                'ad_unit' => trim((string) ($config['rewarded_ad_unit_id'] ?? '')),
-                'gift_card_template_id' => (int) ($config['gift_card_template_id'] ?? 0),
+                'ad_unit' => $settings['ad_unit_id'],
+                'gift_card_template_id' => $settings['gift_card_template_id'],
                 'gift_card_code_id' => null,
                 'custom_data' => $customData,
                 'key_id' => '',
@@ -189,6 +181,7 @@ class RewardController extends PluginController
             return response()->json(['status' => 'fail', 'message' => $error[1]], 400);
         }
 
+        $config = $this->getConfig();
         try {
             $callbackUserId = trim((string) $request->query('user_id', ''));
             $callbackCustomData = trim((string) $request->query('custom_data', ''));
@@ -206,23 +199,11 @@ class RewardController extends PluginController
                     ],
                 ]);
             }
-            $config = $this->getConfig();
-            if (!filter_var($config['enable_reward_ads'] ?? true, FILTER_VALIDATE_BOOL)) {
-                throw new \RuntimeException('AdMob 激励广告未开启');
-            }
             $verified = (new AdmobVerifier($config))->verify($request);
-            if ($verified['console_verification'] ?? false) {
-                return response()->json([
-                    'status' => 'success',
-                    'data' => [
-                        'credited' => false,
-                        'console_verification' => true,
-                    ],
-                ]);
-            }
-            $result = $this->grantReward($verified, $config, $request);
+            $result = $this->grantReward($verified, $request);
             return response()->json(['status' => 'success', 'data' => $result]);
         } catch (\Throwable $e) {
+            $this->markPendingFailed($request, $config, $e->getMessage());
             Log::warning('AdMob SSV reward rejected', [
                 'error' => $e->getMessage(),
                 'query' => $request->query(),
@@ -232,9 +213,9 @@ class RewardController extends PluginController
         }
     }
 
-    private function grantReward(array $verified, array $config, Request $request): array
+    private function grantReward(array $verified, Request $request): array
     {
-        return DB::transaction(function () use ($verified, $config, $request) {
+        return DB::transaction(function () use ($verified, $request) {
             $user = $verified['user']->newQuery()->whereKey($verified['user']->id)->lockForUpdate()->first();
             if (!$user) {
                 throw new \RuntimeException('AdMob SSV 用户不存在');
@@ -250,7 +231,7 @@ class RewardController extends PluginController
                 ];
             }
 
-            $giftCardTemplateId = (int) ($config['gift_card_template_id'] ?? 0);
+            $giftCardTemplateId = (int) $verified['gift_card_template_id'];
             if ($giftCardTemplateId <= 0) {
                 throw new \RuntimeException('XBClient 插件未配置广告奖励礼品卡模板 ID');
             }
@@ -264,6 +245,7 @@ class RewardController extends PluginController
                 'max_usage' => 1,
                 'metadata' => [
                     'source' => 'admob',
+                    'scene' => $verified['scene'],
                     'transaction_id' => $transactionId,
                 ],
             ]);
@@ -340,6 +322,76 @@ class RewardController extends PluginController
             'user_agent' => $request->userAgent(),
             'rewarded_at' => now(),
         ]);
+    }
+
+    private function rewardClientConfig(AdmobVerifier $verifier, int $userId, string $scene, string $prefix): array
+    {
+        $settings = $verifier->rewardSettings($scene);
+        if (!$settings['enabled']) {
+            return [
+                $prefix . '_reward_ad_enabled' => false,
+                $prefix . '_rewarded_ad_unit_id' => '',
+                $prefix . '_ssv_user_id' => '',
+                $prefix . '_ssv_custom_data' => '',
+            ];
+        }
+
+        return [
+            $prefix . '_reward_ad_enabled' => true,
+            $prefix . '_rewarded_ad_unit_id' => $settings['ad_unit_id'],
+            $prefix . '_ssv_user_id' => (string) $userId,
+            $prefix . '_ssv_custom_data' => $verifier->makeCustomData($userId, $scene),
+        ];
+    }
+
+    private function markPendingFailed(Request $request, array $config, string $error): void
+    {
+        $customData = trim((string) $request->query('custom_data', ''));
+        if ($customData === '') {
+            return;
+        }
+        try {
+            $payload = (new AdmobVerifier($config))->readClientCustomData($customData);
+            XbclientRewardLog::where('custom_data', $customData)
+                ->where('user_id', (int) $payload['user_id'])
+                ->where('status', 'pending')
+                ->update([
+                    'status' => 'failed',
+                    'error' => substr($error, 0, 255),
+                    'ip' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'updated_at' => now(),
+                ]);
+        } catch (\Throwable $ignored) {
+        }
+    }
+
+    private function sceneFromLog(XbclientRewardLog $log, array $config): string
+    {
+        if (str_starts_with($log->transaction_id, 'pending:' . AdmobVerifier::SCENE_PLAN . ':')) {
+            return AdmobVerifier::SCENE_PLAN;
+        }
+        if (str_starts_with($log->transaction_id, 'pending:' . AdmobVerifier::SCENE_POINTS . ':')) {
+            return AdmobVerifier::SCENE_POINTS;
+        }
+        if ((int) ($config['plan_gift_card_template_id'] ?? 0) === (int) $log->gift_card_template_id || $this->adUnitMatches((string) ($config['plan_rewarded_ad_unit_id'] ?? ''), (string) $log->ad_unit)) {
+            return AdmobVerifier::SCENE_PLAN;
+        }
+        if ((int) ($config['points_gift_card_template_id'] ?? 0) === (int) $log->gift_card_template_id || $this->adUnitMatches((string) ($config['points_rewarded_ad_unit_id'] ?? ''), (string) $log->ad_unit)) {
+            return AdmobVerifier::SCENE_POINTS;
+        }
+        return '';
+    }
+
+    private function adUnitMatches(string $expectedAdUnit, string $actualAdUnit): bool
+    {
+        $expectedAdUnit = trim($expectedAdUnit);
+        if ($expectedAdUnit === '' || $actualAdUnit === '') {
+            return false;
+        }
+        $slashPosition = strrpos($expectedAdUnit, '/');
+        $expectedAdUnitTail = $slashPosition === false ? $expectedAdUnit : substr($expectedAdUnit, $slashPosition + 1);
+        return $actualAdUnit === $expectedAdUnit || $actualAdUnit === $expectedAdUnitTail;
     }
 
     private function extractVerifyFromQuickLoginUrl(string $loginUrl): string

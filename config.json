@@ -1,19 +1,19 @@
 {
   "name": "Xboard-XBClient",
   "code": "xbclient",
-  "version": "0.0.17",
-  "description": "为 XBClient 客户端提供 Xboard 服务端对接能力：下发激励广告、开屏广告与套餐支付开关，验证 AdMob 激励广告 SSV 回调并通过礼品卡模板发放奖励。",
+  "version": "0.0.18",
+  "description": "为 XBClient 客户端提供 Xboard 服务端对接能力：下发套餐激励广告、积分激励广告、开屏广告与套餐网页支付开关，验证 AdMob 激励广告 SSV 回调并按对应礼品卡模板发放奖励。",
   "author": "MoeclubM",
   "type": "feature",
   "require": {
     "xboard": ">=1.0.0"
   },
   "config": {
-    "enable_reward_ads": {
+    "enable_app_payment": {
       "type": "boolean",
       "default": true,
-      "label": "开启 App 激励广告",
-      "description": "关闭后 App 不展示看广告入口，SSV 回调也不会发放奖励。"
+      "label": "开启 App 网页支付",
+      "description": "下发给 App 控制套餐是否允许跳转网页支付；关闭后套餐页仍显示，但 App 只允许余额足额抵扣。"
     },
     "enable_app_open_ads": {
       "type": "boolean",
@@ -21,11 +21,17 @@
       "label": "开启 App 开屏广告",
       "description": "关闭后 App 不加载或展示开屏广告。"
     },
-    "enable_app_payment": {
+    "enable_plan_reward_ads": {
       "type": "boolean",
       "default": true,
-      "label": "开启 App 网页支付",
-      "description": "下发给 App 控制套餐是否允许跳转网页支付；关闭后套餐页仍显示，但 App 只允许余额足额抵扣。"
+      "label": "开启套餐激励广告",
+      "description": "控制套餐页面的激励广告入口；SSV 验证通过后使用套餐激励礼品卡模板发放奖励。"
+    },
+    "enable_points_reward_ads": {
+      "type": "boolean",
+      "default": false,
+      "label": "开启积分激励广告",
+      "description": "控制账户页面的积分激励广告入口；SSV 验证通过后使用积分激励礼品卡模板发放奖励。"
     },
     "github_project_url": {
       "type": "string",
@@ -51,17 +57,29 @@
       "label": "AdMob 开屏广告单元 ID",
       "description": "服务端下发给 App 用于加载开屏广告；填写完整广告单元 ID，例如 ca-app-pub-xxx/yyy。"
     },
-    "rewarded_ad_unit_id": {
+    "plan_rewarded_ad_unit_id": {
       "type": "string",
       "default": "",
-      "label": "AdMob 激励广告单元 ID",
-      "description": "服务端下发给 App，并用于校验 SSV 回调；填写完整广告单元 ID，例如 ca-app-pub-xxx/yyy。"
+      "label": "AdMob 套餐激励广告单元 ID",
+      "description": "套餐页面使用的激励广告单元，并用于校验套餐激励 SSV 回调。"
     },
-    "gift_card_template_id": {
+    "plan_gift_card_template_id": {
       "type": "string",
       "default": "",
-      "label": "广告奖励礼品卡模板 ID",
-      "description": "必填。SSV 验证通过后，插件会基于该模板创建 max_usage=1 的临时兑换码并立即为当前用户兑换；余额、流量、套餐等奖励均由礼品卡模板决定。"
+      "label": "套餐激励礼品卡模板 ID",
+      "description": "套餐激励 SSV 验证通过后，插件会基于该模板创建 max_usage=1 的临时兑换码并立即为当前用户兑换。"
+    },
+    "points_rewarded_ad_unit_id": {
+      "type": "string",
+      "default": "",
+      "label": "AdMob 积分激励广告单元 ID",
+      "description": "账户页面使用的积分激励广告单元，并用于校验积分激励 SSV 回调。"
+    },
+    "points_gift_card_template_id": {
+      "type": "string",
+      "default": "",
+      "label": "积分激励礼品卡模板 ID",
+      "description": "积分激励 SSV 验证通过后，插件会基于该模板创建 max_usage=1 的临时兑换码并立即为当前用户兑换。"
     },
     "callback_max_age_seconds": {
       "type": "string",

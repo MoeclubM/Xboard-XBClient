@@ -12,6 +12,8 @@ class AdmobVerifier
     private const GOOGLE_KEYS_URL = 'https://www.gstatic.com/admob/reward/verifier-keys.json';
     public const CONSOLE_VERIFY_USER_ID = 'xbclient_admob_verify';
     public const CONSOLE_VERIFY_CUSTOM_DATA = 'xbclient_admob_verify';
+    public const SCENE_PLAN = 'plan';
+    public const SCENE_POINTS = 'points';
 
     public function __construct(private readonly array $config)
     {
@@ -22,61 +24,39 @@ class AdmobVerifier
         $this->verifySignature($request);
 
         $params = $request->query();
-        foreach (['ad_unit', 'reward_amount', 'reward_item', 'timestamp', 'transaction_id', 'key_id'] as $key) {
+        foreach (['ad_unit', 'reward_amount', 'reward_item', 'timestamp', 'transaction_id', 'key_id', 'signature', 'custom_data'] as $key) {
             if (!array_key_exists($key, $params) || $params[$key] === '') {
                 throw new \RuntimeException("AdMob SSV 缺少参数：{$key}");
             }
         }
 
-        $expectedAdUnit = trim((string) ($this->config['rewarded_ad_unit_id'] ?? ''));
-        if ($expectedAdUnit === '') {
-            throw new \RuntimeException('AdMob 插件未配置广告单元 ID');
-        }
-        $adUnit = (string) $params['ad_unit'];
-        $slashPosition = strrpos($expectedAdUnit, '/');
-        $expectedAdUnitTail = $slashPosition === false ? $expectedAdUnit : substr($expectedAdUnit, $slashPosition + 1);
-        if ($adUnit !== $expectedAdUnit && $adUnit !== $expectedAdUnitTail) {
-            throw new \RuntimeException('AdMob SSV 广告单元不匹配');
+        $token = $this->verifyCustomData((string) $params['custom_data']);
+        $scene = (string) $token['scene'];
+        $settings = $this->rewardSettings($scene);
+        if (!$settings['enabled']) {
+            throw new \RuntimeException('AdMob SSV 对应激励广告未开启');
         }
 
+        $adUnit = (string) $params['ad_unit'];
+        $this->verifyAdUnit($settings['ad_unit_id'], $adUnit);
         $this->verifyTimestamp((int) $params['timestamp']);
-        $customData = (string) ($params['custom_data'] ?? '');
-        $userId = (string) ($params['user_id'] ?? '');
-        $isConsoleVerification = ($userId === '' && $customData === '')
-            || ($userId === self::CONSOLE_VERIFY_USER_ID && $customData === self::CONSOLE_VERIFY_CUSTOM_DATA);
-        if ($isConsoleVerification) {
-            return [
-                'user' => null,
-                'console_verification' => true,
-                'ad_network' => (string) ($params['ad_network'] ?? ''),
-                'ad_unit' => $adUnit,
-                'custom_data' => $customData,
-                'reward_amount' => (int) $params['reward_amount'],
-                'reward_item' => (string) $params['reward_item'],
-                'timestamp' => (int) $params['timestamp'],
-                'transaction_id' => (string) $params['transaction_id'],
-                'key_id' => (string) $params['key_id'],
-                'signature' => (string) $params['signature'],
-            ];
-        }
-        if ($customData === '') {
-            throw new \RuntimeException('AdMob SSV 缺少参数：custom_data');
-        }
-        $token = $this->verifyCustomData($customData);
+
         $user = User::whereKey((int) $token['user_id'])->first();
         if (!$user) {
             throw new \RuntimeException('AdMob SSV 用户不存在');
         }
+        $userId = (string) ($params['user_id'] ?? '');
         if ($userId !== '' && $userId !== (string) $user->id) {
             throw new \RuntimeException('AdMob SSV user_id 与 custom_data 不匹配');
         }
 
         return [
             'user' => $user,
-            'console_verification' => false,
+            'scene' => $scene,
             'ad_network' => (string) ($params['ad_network'] ?? ''),
             'ad_unit' => $adUnit,
-            'custom_data' => $customData,
+            'custom_data' => (string) $params['custom_data'],
+            'gift_card_template_id' => $settings['gift_card_template_id'],
             'reward_amount' => (int) $params['reward_amount'],
             'reward_item' => (string) $params['reward_item'],
             'timestamp' => (int) $params['timestamp'],
@@ -86,11 +66,16 @@ class AdmobVerifier
         ];
     }
 
-    public function makeCustomData(int $userId): string
+    public function makeCustomData(int $userId, string $scene): string
     {
+        $settings = $this->rewardSettings($scene);
+        if (!$settings['enabled']) {
+            throw new \RuntimeException('AdMob 激励广告配置不完整');
+        }
         $secret = $this->secret();
         $payload = [
             'user_id' => $userId,
+            'scene' => $scene,
             'iat' => time(),
             'exp' => time() + max(60, (int) ($this->config['token_ttl_seconds'] ?? 900)),
             'nonce' => bin2hex(random_bytes(16)),
@@ -105,19 +90,51 @@ class AdmobVerifier
         return $this->verifyCustomData($customData);
     }
 
+    public function readClientCustomData(string $customData): array
+    {
+        return $this->verifyCustomData($customData, false);
+    }
+
+    public function rewardSettings(string $scene): array
+    {
+        if ($scene === self::SCENE_PLAN) {
+            $enabled = filter_var($this->config['enable_plan_reward_ads'] ?? true, FILTER_VALIDATE_BOOL);
+            $adUnitId = trim((string) ($this->config['plan_rewarded_ad_unit_id'] ?? ''));
+            $giftCardTemplateId = (int) ($this->config['plan_gift_card_template_id'] ?? 0);
+        } elseif ($scene === self::SCENE_POINTS) {
+            $enabled = filter_var($this->config['enable_points_reward_ads'] ?? false, FILTER_VALIDATE_BOOL);
+            $adUnitId = trim((string) ($this->config['points_rewarded_ad_unit_id'] ?? ''));
+            $giftCardTemplateId = (int) ($this->config['points_gift_card_template_id'] ?? 0);
+        } else {
+            throw new \RuntimeException('AdMob 激励广告类型无效');
+        }
+
+        return [
+            'enabled' => $enabled && $adUnitId !== '' && $giftCardTemplateId > 0 && trim((string) ($this->config['ssv_secret'] ?? '')) !== '',
+            'ad_unit_id' => $adUnitId,
+            'gift_card_template_id' => $giftCardTemplateId,
+        ];
+    }
+
     private function verifySignature(Request $request): void
     {
         $query = (string) $request->server('QUERY_STRING', '');
         $signatureOffset = strpos($query, '&signature=');
         if ($signatureOffset === false) {
-            $signatureOffset = strpos($query, 'signature=');
-        }
-        if ($signatureOffset === false) {
             throw new \RuntimeException('AdMob SSV 缺少签名');
         }
 
-        $signedData = rtrim(substr($query, 0, $signatureOffset), '&');
-        $signature = $this->base64UrlDecode((string) $request->query('signature', ''));
+        $signedData = substr($query, 0, $signatureOffset);
+        if ($signedData === '') {
+            throw new \RuntimeException('AdMob SSV 签名原文为空');
+        }
+        $tail = substr($query, $signatureOffset + 1);
+        $keyOffset = strpos($tail, '&key_id=');
+        if ($keyOffset === false) {
+            throw new \RuntimeException('AdMob SSV 缺少 key_id');
+        }
+        $signatureValue = substr($tail, strlen('signature='), $keyOffset - strlen('signature='));
+        $signature = $this->base64UrlDecode(rawurldecode($signatureValue));
         $keyId = (string) $request->query('key_id', '');
         $key = collect($this->googleKeys())->first(fn(array $item) => (string) ($item['keyId'] ?? '') === $keyId);
         if (!$key || empty($key['pem'])) {
@@ -125,6 +142,18 @@ class AdmobVerifier
         }
         if (openssl_verify($signedData, $signature, $key['pem'], OPENSSL_ALGO_SHA256) !== 1) {
             throw new \RuntimeException('AdMob SSV 签名验证失败');
+        }
+    }
+
+    private function verifyAdUnit(string $expectedAdUnit, string $actualAdUnit): void
+    {
+        if ($expectedAdUnit === '') {
+            throw new \RuntimeException('AdMob 插件未配置广告单元 ID');
+        }
+        $slashPosition = strrpos($expectedAdUnit, '/');
+        $expectedAdUnitTail = $slashPosition === false ? $expectedAdUnit : substr($expectedAdUnit, $slashPosition + 1);
+        if ($actualAdUnit !== $expectedAdUnit && $actualAdUnit !== $expectedAdUnitTail) {
+            throw new \RuntimeException('AdMob SSV 广告单元不匹配');
         }
     }
 
@@ -137,7 +166,7 @@ class AdmobVerifier
         }
     }
 
-    private function verifyCustomData(string $customData): array
+    private function verifyCustomData(string $customData, bool $checkExpiration = true): array
     {
         $parts = explode('.', $customData, 2);
         if (count($parts) !== 2) {
@@ -148,10 +177,13 @@ class AdmobVerifier
             throw new \RuntimeException('AdMob SSV custom_data 签名错误');
         }
         $payload = json_decode($this->base64UrlDecode($parts[0]), true);
-        if (!is_array($payload) || empty($payload['user_id']) || empty($payload['exp'])) {
+        if (!is_array($payload) || empty($payload['user_id']) || empty($payload['scene']) || empty($payload['exp'])) {
             throw new \RuntimeException('AdMob SSV custom_data 内容无效');
         }
-        if ((int) $payload['exp'] < time()) {
+        if (!in_array($payload['scene'], [self::SCENE_PLAN, self::SCENE_POINTS], true)) {
+            throw new \RuntimeException('AdMob SSV custom_data 广告类型无效');
+        }
+        if ($checkExpiration && (int) $payload['exp'] < time()) {
             throw new \RuntimeException('AdMob SSV custom_data 已过期');
         }
         return $payload;
