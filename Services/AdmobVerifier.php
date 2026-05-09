@@ -100,6 +100,11 @@ class AdmobVerifier
         return $body . '.' . $signature;
     }
 
+    public function verifyClientCustomData(string $customData): array
+    {
+        return $this->verifyCustomData($customData);
+    }
+
     private function verifySignature(Request $request): void
     {
         $query = (string) $request->server('QUERY_STRING', '');

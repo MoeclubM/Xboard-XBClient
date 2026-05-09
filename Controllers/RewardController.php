@@ -122,6 +122,46 @@ class RewardController extends PluginController
         })->values());
     }
 
+    public function rewardPending(Request $request): JsonResponse
+    {
+        $this->clearConfigCache();
+        if ($error = $this->beforePluginAction()) {
+            return $this->fail($error);
+        }
+
+        $config = $this->getConfig();
+        $customData = trim((string) $request->input('custom_data'));
+        $payload = (new AdmobVerifier($config))->verifyClientCustomData($customData);
+        if ((int) ($payload['user_id'] ?? 0) !== (int) $request->user()->id) {
+            return $this->fail([400, 'AdMob SSV custom_data 用户不匹配']);
+        }
+
+        $transactionId = 'pending:' . hash('sha256', $customData);
+        if (XbclientRewardLog::where('custom_data', $customData)->exists()) {
+            return $this->success(true);
+        }
+        XbclientRewardLog::firstOrCreate(
+            ['transaction_id' => $transactionId],
+            [
+                'user_id' => $request->user()->id,
+                'ad_network' => '',
+                'ad_unit' => trim((string) ($config['rewarded_ad_unit_id'] ?? '')),
+                'gift_card_template_id' => (int) ($config['gift_card_template_id'] ?? 0),
+                'gift_card_code_id' => null,
+                'custom_data' => $customData,
+                'key_id' => '',
+                'signature' => '',
+                'status' => 'pending',
+                'error' => '',
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'rewarded_at' => now(),
+            ]
+        );
+
+        return $this->success(true);
+    }
+
     public function planPaymentBridge(Request $request): Response
     {
         $verify = trim((string) $request->query('verify'));
@@ -244,7 +284,28 @@ class RewardController extends PluginController
                 throw new \RuntimeException('AdMob 礼品卡兑换未完成');
             }
 
-            $this->writeLog($verified, $request, 'credited', '', $giftCardTemplateId, $giftCardCode->id);
+            $pending = XbclientRewardLog::where('custom_data', $verified['custom_data'])
+                ->where('status', 'pending')
+                ->orderByDesc('id')
+                ->first();
+            if ($pending) {
+                $pending->fill([
+                    'transaction_id' => $transactionId,
+                    'ad_network' => $verified['ad_network'],
+                    'ad_unit' => $verified['ad_unit'],
+                    'gift_card_template_id' => $giftCardTemplateId,
+                    'gift_card_code_id' => $giftCardCode->id,
+                    'key_id' => $verified['key_id'],
+                    'signature' => $verified['signature'],
+                    'status' => 'credited',
+                    'error' => '',
+                    'ip' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                    'rewarded_at' => now(),
+                ])->save();
+            } else {
+                $this->writeLog($verified, $request, 'credited', '', $giftCardTemplateId, $giftCardCode->id);
+            }
 
             return [
                 'credited' => true,
