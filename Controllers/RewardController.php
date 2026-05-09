@@ -147,6 +147,15 @@ class RewardController extends PluginController
         }
 
         try {
+            if (!$request->query->has('signature') && !$request->query->has('transaction_id') && !$request->query->has('key_id')) {
+                return response()->json([
+                    'status' => 'success',
+                    'data' => [
+                        'credited' => false,
+                        'console_verification' => true,
+                    ],
+                ]);
+            }
             $config = $this->getConfig();
             if (!filter_var($config['enable_reward_ads'] ?? true, FILTER_VALIDATE_BOOL)) {
                 throw new \RuntimeException('AdMob 激励广告未开启');
