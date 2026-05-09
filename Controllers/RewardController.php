@@ -294,6 +294,10 @@ class RewardController extends PluginController
             $node['insecure'] = (bool) $node['skip-cert-verify'];
         }
         $node['client_supported'] = in_array($type, ['anytls', 'hysteria2', 'hy2'], true);
+        if ($node['client_supported']) {
+            $node['insecure'] = (bool) ($node['insecure'] ?? false);
+            unset($node['skip-cert-verify']);
+        }
         $raw = $node;
         unset($raw['raw']);
         $node['raw'] = json_encode($raw, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

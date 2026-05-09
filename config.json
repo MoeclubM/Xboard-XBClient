@@ -1,7 +1,7 @@
 {
   "name": "Xboard-XBClient",
   "code": "xbclient",
-  "version": "0.0.21",
+  "version": "0.0.22",
   "description": "为 XBClient 客户端提供 Xboard 服务端对接能力：独立下发用户可用节点，提供套餐激励广告、积分激励广告、开屏广告与套餐网页支付开关，验证 AdMob 激励广告 SSV 回调并按对应礼品卡模板发放奖励。",
   "author": "MoeclubM",
   "type": "feature",
