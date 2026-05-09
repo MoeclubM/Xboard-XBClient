@@ -341,7 +341,7 @@ class RewardController extends PluginController
 
             $redeemResult = (new GiftCardService($giftCardCode->code))
                 ->setUser($user)
-                ->validate()
+                ->validateIsActive()
                 ->redeem([
                     'user_agent' => $request->userAgent(),
                     'notes' => 'AdMob reward transaction ' . $transactionId,
