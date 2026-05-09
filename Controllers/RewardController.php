@@ -147,7 +147,14 @@ class RewardController extends PluginController
         }
 
         try {
-            if (!$request->query->has('signature') && !$request->query->has('transaction_id') && !$request->query->has('key_id')) {
+            $callbackUserId = trim((string) $request->query('user_id', ''));
+            $callbackCustomData = trim((string) $request->query('custom_data', ''));
+            if (
+                (!$request->query->has('user_id') && !$request->query->has('custom_data'))
+                || ($callbackUserId === '' && $callbackCustomData === '')
+                || $callbackUserId === AdmobVerifier::CONSOLE_VERIFY_USER_ID
+                || $callbackCustomData === AdmobVerifier::CONSOLE_VERIFY_CUSTOM_DATA
+            ) {
                 return response()->json([
                     'status' => 'success',
                     'data' => [
