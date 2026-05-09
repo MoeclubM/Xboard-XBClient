@@ -130,9 +130,12 @@ class RewardController extends PluginController
         $html = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>正在打开套餐</title></head><body><p>正在打开套餐支付页面...</p><script>'
             . 'const verify=' . json_encode($verify, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ';'
             . 'const target=' . json_encode($target, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ';'
+            . 'const tokenKey="VUE_NAIVE_ACCESS_TOKEN";'
+            . 'localStorage.removeItem(tokenKey);'
+            . 'sessionStorage.removeItem(tokenKey);'
             . 'fetch("/api/v1/passport/auth/token2Login?verify="+encodeURIComponent(verify),{headers:{Accept:"application/json"}})'
             . '.then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.message||"网页登录失败");return body;})'
-            . '.then(body=>{const auth=body&&body.data&&body.data.auth_data;if(!auth)throw new Error("网页登录响应缺少 auth_data");localStorage.setItem("VUE_NAIVE_ACCESS_TOKEN",JSON.stringify({value:auth,time:Date.now(),expire:Date.now()+21600*1000}));location.replace(target);})'
+            . '.then(body=>{const auth=body&&body.data&&body.data.auth_data;if(!auth)throw new Error("网页登录响应缺少 auth_data");localStorage.setItem(tokenKey,JSON.stringify({value:auth,time:Date.now(),expire:Date.now()+21600*1000}));location.replace(target);})'
             . '.catch(error=>{document.body.textContent="套餐支付打开失败："+error.message;});'
             . '</script></body></html>';
 
