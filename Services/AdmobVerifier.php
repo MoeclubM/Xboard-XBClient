@@ -41,7 +41,10 @@ class AdmobVerifier
 
         $this->verifyTimestamp((int) $params['timestamp']);
         $customData = (string) ($params['custom_data'] ?? '');
-        if (($params['user_id'] ?? '') === self::CONSOLE_VERIFY_USER_ID && $customData === self::CONSOLE_VERIFY_CUSTOM_DATA) {
+        $userId = (string) ($params['user_id'] ?? '');
+        $isConsoleVerification = ($userId === '' && $customData === '')
+            || ($userId === self::CONSOLE_VERIFY_USER_ID && $customData === self::CONSOLE_VERIFY_CUSTOM_DATA);
+        if ($isConsoleVerification) {
             return [
                 'user' => null,
                 'console_verification' => true,
@@ -64,7 +67,7 @@ class AdmobVerifier
         if (!$user) {
             throw new \RuntimeException('AdMob SSV 用户不存在');
         }
-        if (($params['user_id'] ?? '') !== '' && (string) $params['user_id'] !== (string) $user->id) {
+        if ($userId !== '' && $userId !== (string) $user->id) {
             throw new \RuntimeException('AdMob SSV user_id 与 custom_data 不匹配');
         }
 
