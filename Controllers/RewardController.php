@@ -80,7 +80,7 @@ class RewardController extends PluginController
         $config = $this->getConfig();
         $logs = XbclientRewardLog::where('user_id', $request->user()->id)
             ->orderByDesc('id')
-            ->limit(20)
+            ->limit(3)
             ->get();
         $codeIds = $logs->pluck('gift_card_code_id')->filter()->values();
         $codes = GiftCardCode::whereIn('id', $codeIds)->get()->keyBy('id');
@@ -130,6 +130,7 @@ class RewardController extends PluginController
 
         $transactionId = 'pending:' . $scene . ':' . hash('sha256', $customData);
         if (XbclientRewardLog::where('custom_data', $customData)->exists()) {
+            $this->trimRewardLogs((int) $request->user()->id);
             return $this->success(true);
         }
         XbclientRewardLog::firstOrCreate(
@@ -150,6 +151,7 @@ class RewardController extends PluginController
                 'rewarded_at' => now(),
             ]
         );
+        $this->trimRewardLogs((int) $request->user()->id);
 
         return $this->success(true);
     }
@@ -223,6 +225,7 @@ class RewardController extends PluginController
             $transactionId = $verified['transaction_id'];
             $existing = XbclientRewardLog::where('transaction_id', $transactionId)->first();
             if ($existing) {
+                $this->trimRewardLogs((int) $user->id);
                 return [
                     'credited' => false,
                     'duplicate' => true,
@@ -288,6 +291,7 @@ class RewardController extends PluginController
             } else {
                 $this->writeLog($verified, $request, 'credited', '', $giftCardTemplateId, $giftCardCode->id);
             }
+            $this->trimRewardLogs((int) $user->id);
 
             return [
                 'credited' => true,
@@ -322,6 +326,18 @@ class RewardController extends PluginController
             'user_agent' => $request->userAgent(),
             'rewarded_at' => now(),
         ]);
+    }
+
+    private function trimRewardLogs(int $userId): void
+    {
+        $oldIds = XbclientRewardLog::where('user_id', $userId)
+            ->orderByDesc('id')
+            ->skip(3)
+            ->limit(1000)
+            ->pluck('id');
+        if ($oldIds->isNotEmpty()) {
+            XbclientRewardLog::whereIn('id', $oldIds)->delete();
+        }
     }
 
     private function rewardClientConfig(AdmobVerifier $verifier, int $userId, string $scene, string $prefix): array

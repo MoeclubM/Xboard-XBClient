@@ -118,7 +118,7 @@ class AdmobVerifier
 
     private function verifySignature(Request $request): void
     {
-        $query = (string) $request->server('QUERY_STRING', '');
+        $query = rawurldecode((string) $request->server('QUERY_STRING', ''));
         $signatureOffset = strpos($query, '&signature=');
         if ($signatureOffset === false) {
             throw new \RuntimeException('AdMob SSV 缺少签名');
@@ -134,8 +134,11 @@ class AdmobVerifier
             throw new \RuntimeException('AdMob SSV 缺少 key_id');
         }
         $signatureValue = substr($tail, strlen('signature='), $keyOffset - strlen('signature='));
-        $signature = $this->base64UrlDecode(rawurldecode($signatureValue));
-        $keyId = (string) $request->query('key_id', '');
+        $keyId = substr($tail, $keyOffset + strlen('&key_id='));
+        if ($keyId === '' || str_contains($keyId, '&')) {
+            throw new \RuntimeException('AdMob SSV key_id 格式错误');
+        }
+        $signature = $this->base64UrlDecode($signatureValue);
         $key = collect($this->googleKeys())->first(fn(array $item) => (string) ($item['keyId'] ?? '') === $keyId);
         if (!$key || empty($key['pem'])) {
             throw new \RuntimeException('AdMob SSV key_id 无匹配公钥');

@@ -77,8 +77,8 @@ SSV 通过后，插件只基于当前广告场景配置的礼品卡模板 ID 创
 ## 接口排布与认证
 
 - 用户侧接口统一放在 `/api/v1/admob/user/*`，并使用 Xboard `user` 中间件认证；当前配置接口为 `/api/v1/admob/user/config`，广告奖励记录接口为 `/api/v1/admob/user/reward-history`。
-- App 观看完成后的待验证记录接口为 `/api/v1/admob/user/reward-pending`，只记录待 Google 回调状态，不发放奖励。
-- Google 回调接口统一放在 `/api/v1/admob/google/*`，不使用用户登录态，但必须通过 Google SSV 签名、广告单元、时间戳和服务端签发的 `custom_data` 校验。
+- App 观看完成后的待验证记录接口为 `/api/v1/admob/user/reward-pending`，只记录待 Google 回调状态，不发放奖励；发放记录最多保留当前用户最新 3 条。
+- Google 回调接口统一放在 `/api/v1/admob/google/*`，不使用用户登录态，但必须通过 Google SSV 签名、广告单元、时间戳和服务端签发的 `custom_data` 校验；签名原文按 AdMob 回调解码后的 query string 截取到 `signature` 前。
 - 原版 Xboard 接口仍保持 `/api/v1/user/*`、`/api/v1/passport/*` 等路径，插件接口不混入原版路径。
 
 ## 防刷逻辑
