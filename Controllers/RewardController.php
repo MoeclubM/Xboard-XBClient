@@ -152,6 +152,15 @@ class RewardController extends PluginController
                 throw new \RuntimeException('AdMob 激励广告未开启');
             }
             $verified = (new AdmobVerifier($config))->verify($request);
+            if ($verified['console_verification'] ?? false) {
+                return response()->json([
+                    'status' => 'success',
+                    'data' => [
+                        'credited' => false,
+                        'console_verification' => true,
+                    ],
+                ]);
+            }
             $result = $this->grantReward($verified, $config, $request);
             return response()->json(['status' => 'success', 'data' => $result]);
         } catch (\Throwable $e) {

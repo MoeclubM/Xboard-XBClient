@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Http;
 class AdmobVerifier
 {
     private const GOOGLE_KEYS_URL = 'https://www.gstatic.com/admob/reward/verifier-keys.json';
+    public const CONSOLE_VERIFY_USER_ID = 'xbclient_admob_verify';
+    public const CONSOLE_VERIFY_CUSTOM_DATA = 'xbclient_admob_verify';
 
     public function __construct(private readonly array $config)
     {
@@ -20,7 +22,7 @@ class AdmobVerifier
         $this->verifySignature($request);
 
         $params = $request->query();
-        foreach (['ad_unit', 'custom_data', 'reward_amount', 'reward_item', 'timestamp', 'transaction_id', 'key_id'] as $key) {
+        foreach (['ad_unit', 'reward_amount', 'reward_item', 'timestamp', 'transaction_id', 'key_id'] as $key) {
             if (!array_key_exists($key, $params) || $params[$key] === '') {
                 throw new \RuntimeException("AdMob SSV 缺少参数：{$key}");
             }
@@ -38,7 +40,26 @@ class AdmobVerifier
         }
 
         $this->verifyTimestamp((int) $params['timestamp']);
-        $token = $this->verifyCustomData((string) $params['custom_data']);
+        $customData = (string) ($params['custom_data'] ?? '');
+        if (($params['user_id'] ?? '') === self::CONSOLE_VERIFY_USER_ID && $customData === self::CONSOLE_VERIFY_CUSTOM_DATA) {
+            return [
+                'user' => null,
+                'console_verification' => true,
+                'ad_network' => (string) ($params['ad_network'] ?? ''),
+                'ad_unit' => $adUnit,
+                'custom_data' => $customData,
+                'reward_amount' => (int) $params['reward_amount'],
+                'reward_item' => (string) $params['reward_item'],
+                'timestamp' => (int) $params['timestamp'],
+                'transaction_id' => (string) $params['transaction_id'],
+                'key_id' => (string) $params['key_id'],
+                'signature' => (string) $params['signature'],
+            ];
+        }
+        if ($customData === '') {
+            throw new \RuntimeException('AdMob SSV 缺少参数：custom_data');
+        }
+        $token = $this->verifyCustomData($customData);
         $user = User::whereKey((int) $token['user_id'])->first();
         if (!$user) {
             throw new \RuntimeException('AdMob SSV 用户不存在');
@@ -49,9 +70,10 @@ class AdmobVerifier
 
         return [
             'user' => $user,
+            'console_verification' => false,
             'ad_network' => (string) ($params['ad_network'] ?? ''),
             'ad_unit' => $adUnit,
-            'custom_data' => (string) $params['custom_data'],
+            'custom_data' => $customData,
             'reward_amount' => (int) $params['reward_amount'],
             'reward_item' => (string) $params['reward_item'],
             'timestamp' => (int) $params['timestamp'],
