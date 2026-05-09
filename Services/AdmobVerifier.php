@@ -31,7 +31,9 @@ class AdmobVerifier
             throw new \RuntimeException('AdMob 插件未配置广告单元 ID');
         }
         $adUnit = (string) $params['ad_unit'];
-        if ($adUnit !== $expectedAdUnit) {
+        $slashPosition = strrpos($expectedAdUnit, '/');
+        $expectedAdUnitTail = $slashPosition === false ? $expectedAdUnit : substr($expectedAdUnit, $slashPosition + 1);
+        if ($adUnit !== $expectedAdUnit && $adUnit !== $expectedAdUnitTail) {
             throw new \RuntimeException('AdMob SSV 广告单元不匹配');
         }
 
@@ -84,7 +86,7 @@ class AdmobVerifier
             throw new \RuntimeException('AdMob SSV 缺少签名');
         }
 
-        $signedData = rawurldecode(rtrim(substr($query, 0, $signatureOffset), '&'));
+        $signedData = rtrim(substr($query, 0, $signatureOffset), '&');
         $signature = $this->base64UrlDecode((string) $request->query('signature', ''));
         $keyId = (string) $request->query('key_id', '');
         $key = collect($this->googleKeys())->first(fn(array $item) => (string) ($item['keyId'] ?? '') === $keyId);
