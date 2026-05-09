@@ -5,8 +5,14 @@ namespace Plugin\Xbclient\Controllers;
 use App\Http\Controllers\PluginController;
 use App\Models\GiftCardCode;
 use App\Models\GiftCardUsage;
+use App\Models\Server;
+use App\Models\User;
+use App\Protocols\ClashMeta;
 use App\Services\Auth\LoginService;
 use App\Services\GiftCardService;
+use App\Services\Plugin\HookManager;
+use App\Services\ServerService;
+use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -39,6 +45,34 @@ class RewardController extends PluginController
             'ad_enabled' => $planReward['plan_reward_ad_enabled'] || $pointsReward['points_reward_ad_enabled'],
             ...$planReward,
             ...$pointsReward,
+        ]);
+    }
+
+    public function nodes(Request $request): JsonResponse
+    {
+        $this->clearConfigCache();
+        if ($error = $this->beforePluginAction()) {
+            return $this->fail($error);
+        }
+
+        $user = User::find($request->user()->id);
+        if (!(new UserService())->isAvailable($user)) {
+            return $this->fail([403, '用户订阅不可用']);
+        }
+
+        $servers = HookManager::filter('client.subscribe.servers', ServerService::getAvailableServers($user), $user, $request);
+        $nodes = [];
+        foreach ($servers as $server) {
+            $node = $this->buildClientNode($server, $user);
+            if ($node) {
+                $nodes[] = $node;
+            }
+        }
+
+        return $this->success([
+            'nodes' => $nodes,
+            'cache_key' => sha1(json_encode(array_column($servers, 'cache_key'))),
+            'updated_at' => time(),
         ]);
     }
 
@@ -213,6 +247,58 @@ class RewardController extends PluginController
             ]);
             return response()->json(['status' => 'fail', 'message' => $e->getMessage()], 400);
         }
+    }
+
+    private function buildClientNode(array $server, User $user): ?array
+    {
+        $password = $server['password'];
+        $node = match ($server['type']) {
+            Server::TYPE_SHADOWSOCKS => ClashMeta::buildShadowsocks($password, $server),
+            Server::TYPE_VMESS => ClashMeta::buildVmess($password, $server),
+            Server::TYPE_TROJAN => ClashMeta::buildTrojan($password, $server),
+            Server::TYPE_VLESS => ClashMeta::buildVless($password, $server),
+            Server::TYPE_HYSTERIA => ClashMeta::buildHysteria($password, $server, $user),
+            Server::TYPE_TUIC => ClashMeta::buildTuic($password, $server),
+            Server::TYPE_ANYTLS => ClashMeta::buildAnyTLS($password, $server),
+            Server::TYPE_SOCKS => ClashMeta::buildSocks5($password, $server),
+            Server::TYPE_NAIVE => [
+                'name' => $server['name'],
+                'type' => 'naive',
+                'server' => $server['host'],
+                'port' => $server['port'],
+                'username' => $password,
+                'password' => $password,
+                'tls' => (bool) data_get($server, 'protocol_settings.tls', false),
+                'skip-cert-verify' => (bool) data_get($server, 'protocol_settings.tls_settings.allow_insecure', false),
+            ],
+            Server::TYPE_HTTP => ClashMeta::buildHttp($password, $server),
+            Server::TYPE_MIERU => ClashMeta::buildMieru($password, $server),
+            default => null,
+        };
+        if (!$node) {
+            return null;
+        }
+
+        $type = strtolower((string) ($node['type'] ?? $server['type']));
+        $host = (string) ($node['server'] ?? $server['host']);
+        $node['id'] = (int) $server['id'];
+        $node['xboard_type'] = $server['type'];
+        $node['type'] = $type;
+        $node['host'] = $host;
+        $node['server'] = $host;
+        $node['port'] = (int) ($node['port'] ?? $server['port']);
+        if (($type === 'anytls' || $type === 'hysteria2') && empty($node['sni'])) {
+            $node['sni'] = $host;
+        }
+        if (array_key_exists('skip-cert-verify', $node)) {
+            $node['insecure'] = (bool) $node['skip-cert-verify'];
+        }
+        $node['client_supported'] = in_array($type, ['anytls', 'hysteria2', 'hy2'], true);
+        $raw = $node;
+        unset($raw['raw']);
+        $node['raw'] = json_encode($raw, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        return $node;
     }
 
     private function grantReward(array $verified, Request $request): array

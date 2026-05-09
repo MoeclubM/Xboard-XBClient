@@ -1,6 +1,6 @@
 # Xboard-XBClient
 
-用于对接 XBClient 客户端与 Xboard 面板：向 App 下发套餐激励广告、积分激励广告、开屏广告、网页支付开关和 AdMob SSV 参数；接收并验证 Google AdMob 激励广告 Server-side verification 回调后自动创建临时礼品卡并兑换，余额、流量、套餐等奖励均由对应礼品卡模板决定。
+用于对接 XBClient 客户端与 Xboard 面板：向 App 独立下发当前用户可用节点、套餐激励广告、积分激励广告、开屏广告、网页支付开关和 AdMob SSV 参数；接收并验证 Google AdMob 激励广告 Server-side verification 回调后自动创建临时礼品卡并兑换，余额、流量、套餐等奖励均由对应礼品卡模板决定。
 
 ## 安装
 
@@ -67,6 +67,15 @@ Authorization: Bearer <auth_data>
 
 插件不向 App 下发奖励数量或奖励名称；App 只负责展示广告和携带 SSV 参数。
 App 本地确认用户已获得激励后会写入一条带场景的 `pending` 记录；Google SSV 回调通过并完成礼品卡兑换后更新为 `credited`，如果回调到达但校验失败则更新为 `failed` 并记录错误。
+
+登录后 App 可直接调用插件节点接口：
+
+```http
+GET /api/v1/admob/user/nodes
+Authorization: Bearer <auth_data>
+```
+
+该接口不依赖 Mihomo / ClashMeta 订阅请求，也不需要额外配置 Mihomo UA。插件会复用 Xboard 当前用户可用节点计算逻辑，并按 ClashMeta 字段格式下发 `ss`、`vmess`、`vless`、`trojan`、`hysteria2`、`tuic`、`anytls`、`socks5`、`naive`、`http`、`mieru` 等协议节点；每个节点额外包含 `id`、`xboard_type`、`host`、`server`、`client_supported` 和 `raw`。当前 XBClient 内核可直接连接 `anytls` 与 `hysteria2`，其他协议会随接口一起下发，供后续客户端内核扩展使用。
 
 ## 奖励发放
 
