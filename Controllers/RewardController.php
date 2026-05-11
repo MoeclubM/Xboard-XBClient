@@ -5,6 +5,7 @@ namespace Plugin\Xbclient\Controllers;
 use App\Http\Controllers\PluginController;
 use App\Models\GiftCardCode;
 use App\Models\GiftCardUsage;
+use App\Models\Plan;
 use App\Models\Server;
 use App\Models\User;
 use App\Protocols\ClashMeta;
@@ -117,28 +118,14 @@ class RewardController extends PluginController
             ->limit(3)
             ->get();
         $codeIds = $logs->pluck('gift_card_code_id')->filter()->values();
-        $codes = GiftCardCode::whereIn('id', $codeIds)->get()->keyBy('id');
-        $usages = GiftCardUsage::whereIn('code_id', $codeIds)->get()->keyBy('code_id');
+        $codes = GiftCardCode::whereIn('id', $codeIds)->with('template')->get()->keyBy('id');
+        $usages = GiftCardUsage::whereIn('code_id', $codeIds)->with('template')->get()->keyBy('code_id');
 
         return $this->success($logs->map(function (XbclientRewardLog $log) use ($codes, $usages, $config) {
             $code = $codes->get($log->gift_card_code_id);
             $usage = $usages->get($log->gift_card_code_id);
 
-            return [
-                'id' => $log->id,
-                'scene' => $this->sceneFromLog($log, $config),
-                'transaction_id' => $log->transaction_id,
-                'status' => $log->status,
-                'error' => $log->error,
-                'gift_card_template_id' => (int) ($log->gift_card_template_id ?? 0),
-                'gift_card_code_id' => (int) ($log->gift_card_code_id ?? 0),
-                'gift_card_code' => $code ? $code->code : '',
-                'gift_card_status' => $code ? (int) $code->status : null,
-                'usage_id' => $usage ? (int) $usage->id : 0,
-                'usage_count' => $code ? (int) $code->usage_count : 0,
-                'used_at' => $code ? (int) ($code->used_at ?? 0) : 0,
-                'created_at' => $log->created_at ? $log->created_at->timestamp : 0,
-            ];
+            return $this->rewardLogPayload($log, $config, $code, $usage);
         })->values());
     }
 
@@ -163,9 +150,12 @@ class RewardController extends PluginController
         }
 
         $transactionId = 'pending:' . $scene . ':' . hash('sha256', $customData);
-        if (XbclientRewardLog::where('custom_data', $customData)->exists()) {
+        $existing = XbclientRewardLog::where('custom_data', $customData)->orderByDesc('id')->first();
+        if ($existing) {
             $this->trimRewardLogs((int) $request->user()->id);
-            return $this->success(true);
+            $code = $existing->gift_card_code_id ? GiftCardCode::with('template')->find($existing->gift_card_code_id) : null;
+            $usage = $existing->gift_card_code_id ? GiftCardUsage::with('template')->where('code_id', $existing->gift_card_code_id)->first() : null;
+            return $this->success($this->rewardLogPayload($existing, $config, $code, $usage));
         }
         XbclientRewardLog::firstOrCreate(
             ['transaction_id' => $transactionId],
@@ -316,12 +306,11 @@ class RewardController extends PluginController
             $existing = XbclientRewardLog::where('transaction_id', $transactionId)->first();
             if ($existing) {
                 $this->trimRewardLogs((int) $user->id);
-                return [
-                    'credited' => false,
+                $code = $existing->gift_card_code_id ? GiftCardCode::with('template')->find($existing->gift_card_code_id) : null;
+                $usage = $existing->gift_card_code_id ? GiftCardUsage::with('template')->where('code_id', $existing->gift_card_code_id)->first() : null;
+                return array_merge($this->rewardLogPayload($existing, $this->getConfig(), $code, $usage), [
                     'duplicate' => true,
-                    'gift_card_template_id' => (int) ($existing->gift_card_template_id ?? 0),
-                    'gift_card_code_id' => (int) ($existing->gift_card_code_id ?? 0),
-                ];
+                ]);
             }
 
             $giftCardTemplateId = (int) $verified['gift_card_template_id'];
@@ -385,11 +374,73 @@ class RewardController extends PluginController
 
             return [
                 'credited' => true,
-                'gift_card_template_id' => $giftCardTemplateId,
-                'gift_card_code_id' => $giftCardCode->id,
-                'template_name' => $redeemResult['template_name'] ?? '',
+                'rewards' => $redeemResult['rewards'] ?? [],
+                'rewards_given' => $redeemResult['rewards'] ?? [],
+                'reward_content' => $this->rewardContent($redeemResult['rewards'] ?? []),
             ];
         });
+    }
+
+    private function rewardLogPayload(XbclientRewardLog $log, array $config, ?GiftCardCode $code, ?GiftCardUsage $usage): array
+    {
+        $rewards = is_array($usage?->rewards_given) ? $usage->rewards_given : [];
+
+        return [
+            'id' => $log->id,
+            'scene' => $this->sceneFromLog($log, $config),
+            'transaction_id' => $log->transaction_id,
+            'status' => $log->status,
+            'error' => $log->error,
+            'rewards' => $rewards,
+            'rewards_given' => $rewards,
+            'reward_content' => $this->rewardContent($rewards),
+            'used_at' => $code ? (int) ($code->used_at ?? 0) : 0,
+            'created_at' => $log->created_at ? $log->created_at->timestamp : 0,
+            'credited' => $log->status === 'credited',
+        ];
+    }
+
+    private function rewardContent(array $rewards): string
+    {
+        $parts = [];
+        if ((int) ($rewards['balance'] ?? 0) > 0) {
+            $parts[] = '余额 ' . ((int) $rewards['balance'] / 100);
+        }
+        if ((int) ($rewards['transfer_enable'] ?? 0) > 0) {
+            $parts[] = '流量 ' . $this->formatTraffic((int) $rewards['transfer_enable']);
+        }
+        if ((int) ($rewards['device_limit'] ?? 0) > 0) {
+            $parts[] = '设备数 +' . (int) $rewards['device_limit'];
+        }
+        if (!empty($rewards['reset_package'])) {
+            $parts[] = '重置流量';
+        }
+        if ((int) ($rewards['plan_id'] ?? 0) > 0) {
+            $plan = Plan::find((int) $rewards['plan_id']);
+            $parts[] = '套餐 ' . ($plan?->name ?? ('#' . (int) $rewards['plan_id']));
+        }
+        if ((int) ($rewards['plan_validity_days'] ?? 0) > 0) {
+            $parts[] = '套餐有效期 ' . (int) $rewards['plan_validity_days'] . ' 天';
+        }
+        if ((int) ($rewards['expire_days'] ?? 0) > 0) {
+            $parts[] = '有效期 +' . (int) $rewards['expire_days'] . ' 天';
+        }
+
+        return implode(' · ', $parts);
+    }
+
+    private function formatTraffic(int $bytes): string
+    {
+        if ($bytes >= 1099511627776) {
+            return round($bytes / 1099511627776, 2) . ' TB';
+        }
+        if ($bytes >= 1073741824) {
+            return round($bytes / 1073741824, 2) . ' GB';
+        }
+        if ($bytes >= 1048576) {
+            return round($bytes / 1048576, 2) . ' MB';
+        }
+        return $bytes . ' B';
     }
 
     private function writeLog(
