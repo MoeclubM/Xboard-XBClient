@@ -277,6 +277,7 @@ class RewardController extends PluginController
         $node['host'] = $host;
         $node['server'] = $host;
         $node['port'] = (int) ($node['port'] ?? $server['port']);
+        $node['tags'] = array_values((array) ($server['tags'] ?? []));
         if (($type === 'anytls' || $type === 'hysteria2') && empty($node['sni'])) {
             $node['sni'] = $host;
         }
