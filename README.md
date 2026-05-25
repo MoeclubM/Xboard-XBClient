@@ -75,7 +75,7 @@ GET /api/v1/admob/user/nodes
 Authorization: Bearer <auth_data>
 ```
 
-该接口不依赖 Mihomo / ClashMeta 订阅请求，也不需要额外配置 Mihomo UA。插件会复用 Xboard 当前用户可用节点计算逻辑，并按 ClashMeta 字段格式下发 `ss`、`vmess`、`vless`、`trojan`、`hysteria2`、`tuic`、`anytls`、`socks5`、`naive`、`http`、`mieru` 等协议节点；每个节点额外包含 `id`、`xboard_type`、`host`、`server`、`client_supported` 和 `raw`。当前 XBClient/Aerion 客户端可直接连接 `anytls`、`hysteria2`、`ss`、`vmess`、`vless`、`trojan`、`tuic`、`naive`、`http`、`socks5` 与 `mieru`。
+该接口不依赖 Mihomo / ClashMeta 订阅请求，也不需要额外配置 Mihomo UA。插件会复用 Xboard 当前用户可用节点计算逻辑，并按 ClashMeta 字段格式下发 `ss`、`vmess`、`vless`、`trojan`、`hysteria2`、`tuic`、`anytls`、`socks5`、`naive`、`http`、`mieru`、`direct`、`block` 等协议节点；每个节点额外包含 `id`、`xboard_type`、`host`、`server`、`client_supported` 和 `raw`。当前 XBClient/Aerion 客户端可直接连接 `anytls`、`hysteria2`、`ss`、`vmess`、`vless`、`trojan`、`tuic`、`naive`、`http`、`socks5`、`mieru`、`direct`/`freedom` 与 `block`/`reject`/`blackhole`。
 
 ## 奖励发放
 

@@ -283,7 +283,7 @@ class RewardController extends PluginController
         if (array_key_exists('skip-cert-verify', $node)) {
             $node['insecure'] = (bool) $node['skip-cert-verify'];
         }
-        $node['client_supported'] = in_array($type, ['anytls', 'hysteria2', 'hy2', 'ss', 'shadowsocks', 'vmess', 'vless', 'trojan', 'tuic', 'naive', 'http', 'socks5', 'socks', 'mieru'], true);
+        $node['client_supported'] = in_array($type, ['anytls', 'hysteria2', 'hy2', 'ss', 'shadowsocks', 'vmess', 'vless', 'trojan', 'tuic', 'naive', 'http', 'socks5', 'socks', 'mieru', 'direct', 'freedom', 'reject', 'block', 'blackhole'], true);
         if ($node['client_supported']) {
             $node['insecure'] = (bool) ($node['insecure'] ?? false);
             unset($node['skip-cert-verify']);
