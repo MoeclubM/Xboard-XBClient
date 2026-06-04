@@ -277,8 +277,22 @@ class RewardController extends PluginController
         $node['host'] = $host;
         $node['server'] = $host;
         $node['port'] = (int) ($node['port'] ?? $server['port']);
-        if (($type === 'anytls' || $type === 'hysteria2') && empty($node['sni'])) {
-            $node['sni'] = $host;
+        if ($type === 'anytls' || $type === 'hysteria2') {
+            $sni = trim((string) ($node['sni'] ?? ''));
+            if ($sni === '' || $this->isIpLiteral($sni)) {
+                $sni = $this->clientNodeSni($server, $host);
+                if ($sni !== '') {
+                    $node['sni'] = $sni;
+                } else {
+                    unset($node['sni']);
+                }
+            }
+        }
+        if ($type === 'mieru') {
+            $trafficPattern = trim((string) data_get($server, 'protocol_settings.traffic_pattern', ''));
+            if ($trafficPattern !== '') {
+                $node['traffic_pattern'] = $trafficPattern;
+            }
         }
         if (array_key_exists('skip-cert-verify', $node)) {
             $node['insecure'] = (bool) $node['skip-cert-verify'];
@@ -293,6 +307,36 @@ class RewardController extends PluginController
         $node['raw'] = json_encode($raw, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
         return $node;
+    }
+
+    private function clientNodeSni(array $server, string $host): string
+    {
+        $serverName = trim((string) data_get($server, 'protocol_settings.tls.server_name', ''));
+        if ($serverName !== '' && !$this->isIpLiteral($serverName)) {
+            return $serverName;
+        }
+        $parentId = (int) ($server['parent_id'] ?? 0);
+        if ($parentId > 0) {
+            $parent = Server::find($parentId);
+            if ($parent) {
+                $parentServerName = trim((string) data_get($parent, 'protocol_settings.tls.server_name', ''));
+                if ($parentServerName !== '' && !$this->isIpLiteral($parentServerName)) {
+                    return $parentServerName;
+                }
+                $parentHost = trim((string) $parent->host);
+                if ($parentHost !== '' && !$this->isIpLiteral($parentHost)) {
+                    return $parentHost;
+                }
+            }
+        }
+        $host = trim($host);
+        return $host !== '' && !$this->isIpLiteral($host) ? $host : '';
+    }
+
+    private function isIpLiteral(string $value): bool
+    {
+        $value = trim($value, " \t\n\r\0\x0B[]");
+        return $value !== '' && filter_var($value, FILTER_VALIDATE_IP) !== false;
     }
 
     private function grantReward(array $verified, Request $request): array
