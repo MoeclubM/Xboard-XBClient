@@ -79,14 +79,14 @@ Authorization: Bearer <auth_data>
 
 ## 奖励发放
 
-SSV 通过后，插件只基于当前广告场景配置的礼品卡模板 ID 创建 `max_usage=1`、短有效期的临时兑换码，再调用 Xboard `GiftCardService` 为当前用户兑换，并确认兑换码已标记为当前用户使用一次。插件不直接记录或下发奖励内容，也不单独实现余额发放；余额、流量、套餐、有效期等奖励全部由原礼品卡模板决定。AdMob 创建的是服务端临时兑换码，兑换时只检查模板和兑换码本身处于可用状态，不套用面向用户手动输入兑换码的使用条件，避免套餐礼品卡因当前用户已有有效套餐而无法作为广告奖励发放。
+SSV 通过后，插件只基于当前广告场景配置的礼品卡模板 ID 创建 `max_usage=1`、短有效期的临时兑换码，再调用 Xboard `GiftCardService` 为当前用户兑换，并确认兑换码已标记为当前用户使用一次。插件不直接记录或下发奖励内容，也不单独实现余额发放；余额、流量、套餐、有效期等奖励全部由原礼品卡模板决定。套餐激励广告兑换前会复用 Xboard 用户模型的当前订阅可用性判断，当前套餐或流量包仍可用且剩余流量大于 0 时直接拒绝并提示无法兑换广告套餐，避免覆盖现有套餐；流量已耗尽等订阅不可用状态不拦截兑换。
 
 网页支付开关只负责控制 App 是否允许跳转 Xboard 网页支付。开关开启时，App 点击套餐后调用 `/api/v1/admob/user/plan-payment` 生成一次性网页支付桥接地址，浏览器会写入当前 App 用户登录态并进入 `/#/plan/{plan_id}`；开关关闭时，App 不跳网页，只使用原版 `/api/v1/user/order/save` 与 `/api/v1/user/order/checkout` 完成余额足额抵扣订单。
 
 ## 接口排布与认证
 
 - 用户侧接口统一放在 `/api/v1/admob/user/*`，并使用 Xboard `user` 中间件认证；当前配置接口为 `/api/v1/admob/user/config`，广告奖励记录接口为 `/api/v1/admob/user/reward-history`。
-- App 观看完成后的待验证记录接口为 `/api/v1/admob/user/reward-pending`，只记录待 Google 回调状态，不发放奖励；发放记录最多保留当前用户最新 3 条。
+- App 观看完成后的待验证记录接口为 `/api/v1/admob/user/reward-pending`，只记录待 Google 回调状态，不发放奖励；历史查询接口只返回当前用户最新 3 条记录，服务端保留完整奖励日志用于 SSV 事务幂等。
 - Google 回调接口统一放在 `/api/v1/admob/google/*`，不使用用户登录态，但必须通过 Google SSV 签名、广告单元、时间戳和服务端签发的 `custom_data` 校验；签名原文按 AdMob 回调解码后的 query string 截取到 `signature` 前。
 - 原版 Xboard 接口仍保持 `/api/v1/user/*`、`/api/v1/passport/*` 等路径，插件接口不混入原版路径。
 

@@ -57,7 +57,7 @@ class RewardController extends PluginController
         }
 
         $user = User::find($request->user()->id);
-        if (!(new UserService())->isAvailable($user)) {
+        if (!$user->isAvailable()) {
             return $this->fail([403, '用户订阅不可用']);
         }
 
@@ -152,10 +152,12 @@ class RewardController extends PluginController
         $transactionId = 'pending:' . $scene . ':' . hash('sha256', $customData);
         $existing = XbclientRewardLog::where('custom_data', $customData)->orderByDesc('id')->first();
         if ($existing) {
-            $this->trimRewardLogs((int) $request->user()->id);
             $code = $existing->gift_card_code_id ? GiftCardCode::with('template')->find($existing->gift_card_code_id) : null;
             $usage = $existing->gift_card_code_id ? GiftCardUsage::with('template')->where('code_id', $existing->gift_card_code_id)->first() : null;
             return $this->success($this->rewardLogPayload($existing, $config, $code, $usage));
+        }
+        if ($scene === AdmobVerifier::SCENE_PLAN && $request->user()->isAvailable()) {
+            return $this->fail([400, '当前套餐仍可用，无法兑换广告套餐']);
         }
         XbclientRewardLog::firstOrCreate(
             ['transaction_id' => $transactionId],
@@ -175,7 +177,6 @@ class RewardController extends PluginController
                 'rewarded_at' => now(),
             ]
         );
-        $this->trimRewardLogs((int) $request->user()->id);
 
         return $this->success(true);
     }
@@ -287,6 +288,9 @@ class RewardController extends PluginController
                     unset($node['sni']);
                 }
             }
+            if (!(bool) ($node['insecure'] ?? false)) {
+                $node['insecure'] = $this->clientNodeInsecure($server);
+            }
         }
         if ($type === 'mieru') {
             $trafficPattern = trim((string) data_get($server, 'protocol_settings.traffic_pattern', ''));
@@ -294,7 +298,7 @@ class RewardController extends PluginController
                 $node['traffic_pattern'] = $trafficPattern;
             }
         }
-        if (array_key_exists('skip-cert-verify', $node)) {
+        if (array_key_exists('skip-cert-verify', $node) && !(bool) ($node['insecure'] ?? false)) {
             $node['insecure'] = (bool) $node['skip-cert-verify'];
         }
         $node['client_supported'] = in_array($type, ['anytls', 'hysteria2', 'hy2', 'ss', 'shadowsocks', 'vmess', 'vless', 'trojan', 'tuic', 'naive', 'http', 'socks5', 'socks', 'mieru', 'direct', 'freedom', 'reject', 'block', 'blackhole'], true);
@@ -311,17 +315,21 @@ class RewardController extends PluginController
 
     private function clientNodeSni(array $server, string $host): string
     {
-        $serverName = trim((string) data_get($server, 'protocol_settings.tls.server_name', ''));
-        if ($serverName !== '' && !$this->isIpLiteral($serverName)) {
-            return $serverName;
+        foreach (['protocol_settings.tls.server_name', 'protocol_settings.tls_settings.server_name'] as $path) {
+            $serverName = trim((string) data_get($server, $path, ''));
+            if ($serverName !== '' && !$this->isIpLiteral($serverName)) {
+                return $serverName;
+            }
         }
         $parentId = (int) ($server['parent_id'] ?? 0);
         if ($parentId > 0) {
             $parent = Server::find($parentId);
             if ($parent) {
-                $parentServerName = trim((string) data_get($parent, 'protocol_settings.tls.server_name', ''));
-                if ($parentServerName !== '' && !$this->isIpLiteral($parentServerName)) {
-                    return $parentServerName;
+                foreach (['protocol_settings.tls.server_name', 'protocol_settings.tls_settings.server_name'] as $path) {
+                    $parentServerName = trim((string) data_get($parent, $path, ''));
+                    if ($parentServerName !== '' && !$this->isIpLiteral($parentServerName)) {
+                        return $parentServerName;
+                    }
                 }
                 $parentHost = trim((string) $parent->host);
                 if ($parentHost !== '' && !$this->isIpLiteral($parentHost)) {
@@ -331,6 +339,29 @@ class RewardController extends PluginController
         }
         $host = trim($host);
         return $host !== '' && !$this->isIpLiteral($host) ? $host : '';
+    }
+
+    private function clientNodeInsecure(array $server): bool
+    {
+        foreach (['protocol_settings.tls.allow_insecure', 'protocol_settings.tls_settings.allow_insecure'] as $path) {
+            if ((bool) data_get($server, $path, false)) {
+                return true;
+            }
+        }
+        $parentId = (int) ($server['parent_id'] ?? 0);
+        if ($parentId <= 0) {
+            return false;
+        }
+        $parent = Server::find($parentId);
+        if (!$parent) {
+            return false;
+        }
+        foreach (['protocol_settings.tls.allow_insecure', 'protocol_settings.tls_settings.allow_insecure'] as $path) {
+            if ((bool) data_get($parent, $path, false)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function isIpLiteral(string $value): bool
@@ -349,12 +380,14 @@ class RewardController extends PluginController
             $transactionId = $verified['transaction_id'];
             $existing = XbclientRewardLog::where('transaction_id', $transactionId)->first();
             if ($existing) {
-                $this->trimRewardLogs((int) $user->id);
                 $code = $existing->gift_card_code_id ? GiftCardCode::with('template')->find($existing->gift_card_code_id) : null;
                 $usage = $existing->gift_card_code_id ? GiftCardUsage::with('template')->where('code_id', $existing->gift_card_code_id)->first() : null;
                 return array_merge($this->rewardLogPayload($existing, $this->getConfig(), $code, $usage), [
                     'duplicate' => true,
                 ]);
+            }
+            if ($verified['scene'] === AdmobVerifier::SCENE_PLAN && $user->isAvailable()) {
+                throw new \RuntimeException('当前套餐仍可用，无法兑换广告套餐');
             }
 
             $giftCardTemplateId = (int) $verified['gift_card_template_id'];
@@ -414,7 +447,6 @@ class RewardController extends PluginController
             } else {
                 $this->writeLog($verified, $request, 'credited', '', $giftCardTemplateId, $giftCardCode->id);
             }
-            $this->trimRewardLogs((int) $user->id);
 
             return [
                 'credited' => true,
@@ -511,18 +543,6 @@ class RewardController extends PluginController
             'user_agent' => $request->userAgent(),
             'rewarded_at' => now(),
         ]);
-    }
-
-    private function trimRewardLogs(int $userId): void
-    {
-        $oldIds = XbclientRewardLog::where('user_id', $userId)
-            ->orderByDesc('id')
-            ->skip(3)
-            ->limit(1000)
-            ->pluck('id');
-        if ($oldIds->isNotEmpty()) {
-            XbclientRewardLog::whereIn('id', $oldIds)->delete();
-        }
     }
 
     private function rewardClientConfig(AdmobVerifier $verifier, int $userId, string $scene, string $prefix): array
