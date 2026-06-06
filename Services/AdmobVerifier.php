@@ -30,7 +30,8 @@ class AdmobVerifier
             }
         }
 
-        $token = $this->verifyCustomData((string) $params['custom_data']);
+        $callbackSeconds = $this->verifyTimestamp((int) $params['timestamp']);
+        $token = $this->verifyCustomData((string) $params['custom_data'], true, $callbackSeconds);
         $scene = (string) $token['scene'];
         $settings = $this->rewardSettings($scene);
         if (!$settings['enabled']) {
@@ -39,8 +40,6 @@ class AdmobVerifier
 
         $adUnit = (string) $params['ad_unit'];
         $this->verifyAdUnit($settings['ad_unit_id'], $adUnit);
-        $this->verifyTimestamp((int) $params['timestamp']);
-
         $user = User::whereKey((int) $token['user_id'])->first();
         if (!$user) {
             throw new \RuntimeException('AdMob SSV 用户不存在');
@@ -160,16 +159,17 @@ class AdmobVerifier
         }
     }
 
-    private function verifyTimestamp(int $timestamp): void
+    private function verifyTimestamp(int $timestamp): int
     {
         $seconds = $timestamp > 100000000000000 ? intdiv($timestamp, 1000000) : intdiv($timestamp, 1000);
         $maxAge = max(60, (int) ($this->config['callback_max_age_seconds'] ?? 3600));
         if (abs(time() - $seconds) > $maxAge) {
             throw new \RuntimeException('AdMob SSV 回调时间超出允许范围');
         }
+        return $seconds;
     }
 
-    private function verifyCustomData(string $customData, bool $checkExpiration = true): array
+    private function verifyCustomData(string $customData, bool $checkExpiration = true, ?int $now = null): array
     {
         $parts = explode('.', $customData, 2);
         if (count($parts) !== 2) {
@@ -186,7 +186,7 @@ class AdmobVerifier
         if (!in_array($payload['scene'], [self::SCENE_PLAN, self::SCENE_POINTS], true)) {
             throw new \RuntimeException('AdMob SSV custom_data 广告类型无效');
         }
-        if ($checkExpiration && (int) $payload['exp'] < time()) {
+        if ($checkExpiration && (int) $payload['exp'] < ($now ?? time())) {
             throw new \RuntimeException('AdMob SSV custom_data 已过期');
         }
         return $payload;

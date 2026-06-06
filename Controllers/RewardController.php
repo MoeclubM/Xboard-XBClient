@@ -42,7 +42,6 @@ class RewardController extends PluginController
             'payment_enabled' => filter_var($config['enable_app_payment'] ?? true, FILTER_VALIDATE_BOOL),
             'app_open_ad_enabled' => filter_var($config['enable_app_open_ads'] ?? false, FILTER_VALIDATE_BOOL) && $appOpenAdUnitId !== '',
             'app_open_ad_unit_id' => $appOpenAdUnitId,
-            'github_project_url' => trim((string) ($config['github_project_url'] ?? '')),
             'ad_enabled' => $planReward['plan_reward_ad_enabled'] || $pointsReward['points_reward_ad_enabled'],
             ...$planReward,
             ...$pointsReward,
@@ -156,8 +155,8 @@ class RewardController extends PluginController
             $usage = $existing->gift_card_code_id ? GiftCardUsage::with('template')->where('code_id', $existing->gift_card_code_id)->first() : null;
             return $this->success($this->rewardLogPayload($existing, $config, $code, $usage));
         }
-        if ($scene === AdmobVerifier::SCENE_PLAN && $request->user()->isAvailable()) {
-            return $this->fail([400, '当前套餐仍可用，无法兑换广告套餐']);
+        if ($scene === AdmobVerifier::SCENE_PLAN && $this->subscriptionStillUsable($request->user())) {
+            return $this->fail([400, '当前套餐或流量包仍可用，无法兑换广告套餐']);
         }
         XbclientRewardLog::firstOrCreate(
             ['transaction_id' => $transactionId],
@@ -386,8 +385,19 @@ class RewardController extends PluginController
                     'duplicate' => true,
                 ]);
             }
-            if ($verified['scene'] === AdmobVerifier::SCENE_PLAN && $user->isAvailable()) {
-                throw new \RuntimeException('当前套餐仍可用，无法兑换广告套餐');
+            $creditedWithSameCustomData = XbclientRewardLog::where('custom_data', $verified['custom_data'])
+                ->where('status', 'credited')
+                ->orderByDesc('id')
+                ->first();
+            if ($creditedWithSameCustomData) {
+                $code = $creditedWithSameCustomData->gift_card_code_id ? GiftCardCode::with('template')->find($creditedWithSameCustomData->gift_card_code_id) : null;
+                $usage = $creditedWithSameCustomData->gift_card_code_id ? GiftCardUsage::with('template')->where('code_id', $creditedWithSameCustomData->gift_card_code_id)->first() : null;
+                return array_merge($this->rewardLogPayload($creditedWithSameCustomData, $this->getConfig(), $code, $usage), [
+                    'duplicate' => true,
+                ]);
+            }
+            if ($verified['scene'] === AdmobVerifier::SCENE_PLAN && $this->subscriptionStillUsable($user)) {
+                throw new \RuntimeException('当前套餐或流量包仍可用，无法兑换广告套餐');
             }
 
             $giftCardTemplateId = (int) $verified['gift_card_template_id'];
@@ -474,6 +484,13 @@ class RewardController extends PluginController
             'created_at' => $log->created_at ? $log->created_at->timestamp : 0,
             'credited' => $log->status === 'credited',
         ];
+    }
+
+    private function subscriptionStillUsable(User $user): bool
+    {
+        return !$user->banned
+            && ($user->expired_at === null || (int) $user->expired_at > time())
+            && $user->getRemainingTraffic() > 0;
     }
 
     private function rewardContent(array $rewards): string
@@ -584,6 +601,9 @@ class RewardController extends PluginController
                     'updated_at' => now(),
                 ]);
         } catch (\Throwable $ignored) {
+            Log::warning('AdMob SSV pending failure mark skipped', [
+                'error' => $ignored->getMessage(),
+            ]);
         }
     }
 

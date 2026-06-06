@@ -14,9 +14,8 @@
    - `开启 App 开屏广告`：控制 App 是否加载和展示开屏广告。
    - `开启套餐激励广告`：控制套餐页面的激励广告入口。
    - `开启积分激励广告`：控制账户页面的积分激励广告入口。
-   - `GitHub Release 项目地址`：App 启动后按该项目检查最新 Release，可填写 `https://github.com/owner/repo` 或 `owner/repo`；留空则不检查。
    - `客户端 SSV 令牌签名密钥`：随机 32 字节以上密钥。
-   - `SSV 令牌有效期秒数`：App 获取 custom_data 后需在有效期内完成广告观看。
+   - `SSV 令牌有效期秒数`：App 获取 custom_data 后需在有效期内完成广告观看；SSV 校验按 Google 回调中的奖励时间判断是否过期。
    - `AdMob 开屏广告单元 ID`：完整广告单元 ID，例如 `ca-app-pub-xxx/yyy`。
    - `AdMob 套餐激励广告单元 ID` / `套餐激励礼品卡模板 ID`：套餐页面广告使用；SSV 通过后按该模板创建一次性临时兑换码并立即兑换。
    - `AdMob 积分激励广告单元 ID` / `积分激励礼品卡模板 ID`：账户页面广告使用；SSV 通过后按该模板创建一次性临时兑换码并立即兑换。
@@ -61,12 +60,12 @@ Authorization: Bearer <auth_data>
 - `payment_enabled`：App 是否允许套餐跳转网页支付；为 `false` 时 App 仍展示套餐页，但只允许余额足额抵扣。
 - `app_open_ad_enabled`：App 是否加载和展示开屏广告。
 - `app_open_ad_unit_id`：App 加载开屏广告使用的广告单元 ID。
-- `github_project_url`：App 检查 GitHub Release 更新使用的项目地址。
 - `plan_reward_ad_enabled`、`plan_rewarded_ad_unit_id`、`plan_ssv_user_id`、`plan_ssv_custom_data`：套餐页面激励广告参数。
 - `points_reward_ad_enabled`、`points_rewarded_ad_unit_id`、`points_ssv_user_id`、`points_ssv_custom_data`：账户页面积分激励广告参数。
 
 插件不向 App 下发奖励数量或奖励名称；App 只负责展示广告和携带 SSV 参数。
-App 本地确认用户已获得激励后会写入一条带场景的 `pending` 记录；Google SSV 回调通过并完成礼品卡兑换后更新为 `credited`，如果回调到达但校验失败则更新为 `failed` 并记录错误。
+App 更新检查只使用客户端构建期配置的 GitHub Release 项目，不从 Xboard 插件接口下发更新源。
+App 本地确认用户已获得激励后会写入一条带场景的 `pending` 记录；Google SSV 回调通过并完成礼品卡兑换后更新为 `credited`，同一个 `custom_data` 已兑换时只返回幂等结果不重复发放；如果回调到达但校验失败则更新为 `failed` 并记录错误。
 
 登录后 App 可直接调用插件节点接口：
 
@@ -79,7 +78,7 @@ Authorization: Bearer <auth_data>
 
 ## 奖励发放
 
-SSV 通过后，插件只基于当前广告场景配置的礼品卡模板 ID 创建 `max_usage=1`、短有效期的临时兑换码，再调用 Xboard `GiftCardService` 为当前用户兑换，并确认兑换码已标记为当前用户使用一次。插件不直接记录或下发奖励内容，也不单独实现余额发放；余额、流量、套餐、有效期等奖励全部由原礼品卡模板决定。套餐激励广告兑换前会复用 Xboard 用户模型的当前订阅可用性判断，当前套餐或流量包仍可用且剩余流量大于 0 时直接拒绝并提示无法兑换广告套餐，避免覆盖现有套餐；流量已耗尽等订阅不可用状态不拦截兑换。
+SSV 通过后，插件只基于当前广告场景配置的礼品卡模板 ID 创建 `max_usage=1`、短有效期的临时兑换码，再调用 Xboard `GiftCardService` 为当前用户兑换，并确认兑换码已标记为当前用户使用一次。插件不直接记录或下发奖励内容，也不单独实现余额发放；余额、流量、套餐、有效期等奖励全部由原礼品卡模板决定。套餐激励广告兑换前会检查当前用户未封禁、未过期且剩余流量大于 0 的可用状态；当前套餐或流量包仍可用时直接拒绝并提示无法兑换广告套餐，避免覆盖现有套餐/流量包；流量已耗尽等订阅不可用状态不拦截兑换。
 
 网页支付开关只负责控制 App 是否允许跳转 Xboard 网页支付。开关开启时，App 点击套餐后调用 `/api/v1/admob/user/plan-payment` 生成一次性网页支付桥接地址，浏览器会写入当前 App 用户登录态并进入 `/#/plan/{plan_id}`；开关关闭时，App 不跳网页，只使用原版 `/api/v1/user/order/save` 与 `/api/v1/user/order/checkout` 完成余额足额抵扣订单。
 
