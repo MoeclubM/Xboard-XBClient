@@ -4,7 +4,7 @@
 
 ## 安装
 
-0.0.36 增加 Sudoku 节点下发（依赖同时更新的 Xboard 和 XBClient）。
+0.0.37 增加 Sudoku 节点下发及验证（依赖同时更新的 Xboard 和 XBClient）。
 节点使用用户 UUID 作为 `key`，并保留 AEAD、ASCII、填充、轮换表与 HTTPMask 字段。
 
 1. 将本插件目录放入 Xboard 的 `plugins/Xbclient`。
