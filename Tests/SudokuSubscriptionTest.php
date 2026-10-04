@@ -19,7 +19,7 @@ class SudokuSubscriptionTest extends TestCase
         Plugin::create(['name' => 'XBClient', 'code' => 'xbclient', 'version' => '0.0.38', 'is_enabled' => true]);
         $user = User::create(['email' => 'subscriber@example.com', 'password' => bcrypt('test'),
             'uuid' => 'user-uuid', 'token' => 'user-token', 'plan_id' => 1, 'group_id' => 1,
-            'u' => 0, 'd' => 0, 'transfer_enable' => 1024]);
+            'u' => 0, 'd' => 0, 'transfer_enable' => 1024, 'expired_at' => null]);
         $server = ['name' => 'Test', 'host' => 'node.example.com', 'port' => 443,
             'server_port' => 8443, 'rate' => 1, 'show' => 1, 'enabled' => true, 'group_ids' => ['1']];
         Server::create($server + ['type' => 'sudoku', 'protocol_settings' => ['multiplex' => 'on']]);
@@ -32,6 +32,7 @@ class SudokuSubscriptionTest extends TestCase
             }
             $request->setUserResolver(fn() => $user);
             $response = (new RewardController())->nodes($request)->getData(true);
+            $this->assertSame('success', $response['status'], json_encode($response));
             $nodes = $response['data']['nodes'];
             $this->assertCount($count, $nodes, 'protocols=' . $protocols);
             $this->assertContains('ss', array_column($nodes, 'type'));
