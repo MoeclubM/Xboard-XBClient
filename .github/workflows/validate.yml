@@ -9,10 +9,24 @@ permissions:
 jobs:
   php:
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: testing
+          MYSQL_DATABASE: xboard_test
+        ports: ['3306:3306']
+        options: --health-cmd="mysqladmin ping -ptesting" --health-interval=10s --health-timeout=5s --health-retries=10
     env:
       APP_ENV: testing
-      DB_CONNECTION: sqlite
-      DB_DATABASE: ':memory:'
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_DATABASE: xboard_test
+      DB_USERNAME: root
+      DB_PASSWORD: testing
       APP_KEY: base64:YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=
       CACHE_STORE: array
       CACHE_DRIVER: array
@@ -29,7 +43,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: pdo_sqlite, redis, bcmath, pcntl, gd, zip
+          extensions: pdo_mysql, redis, bcmath, pcntl, gd, zip
           tools: composer
       - run: composer install --no-interaction --prefer-dist
       - run: find plugins/Xbclient -name '*.php' -print0 | xargs -0 -n1 php -l

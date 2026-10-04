@@ -61,8 +61,12 @@ class RewardController extends PluginController
         }
 
         $servers = HookManager::filter('client.subscribe.servers', ServerService::getAvailableServers($user), $user, $request);
+        $supportsSudoku = in_array('sudoku', array_map('trim', explode(',', strtolower((string) $request->header('X-XBClient-Protocols')))), true);
         $nodes = [];
         foreach ($servers as $server) {
+            if ($server['type'] === Server::TYPE_SUDOKU && !$supportsSudoku) {
+                continue;
+            }
             $node = $this->buildClientNode($server, $user);
             if ($node) {
                 $nodes[] = $node;

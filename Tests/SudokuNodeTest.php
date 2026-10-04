@@ -14,7 +14,7 @@ class SudokuNodeTest extends TestCase
         $server = (new Server())->forceFill(['type' => 'sudoku', 'name' => 'Sudoku',
             'host' => 'node.example.com', 'port' => 443, 'server_port' => 8443,
             'protocol_settings' => ['http_mask' => true, 'http_mask_mode' => 'ws',
-                'path_root' => 'edge', 'custom_tables' => ['xpxvvpvv']]]);
+                'path_root' => 'edge', 'multiplex' => 'on', 'custom_tables' => ['xpxvvpvv']]]);
         $data = $server->toArray();
         $data['id'] = 7;
         $data['password'] = 'user-uuid';
@@ -25,6 +25,8 @@ class SudokuNodeTest extends TestCase
         $this->assertSame('user-uuid', $node['key']);
         $this->assertTrue($node['client_supported']);
         $this->assertSame('ws', $node['http-mask-mode']);
+        $this->assertSame('on', $node['http-mask-multiplex']);
+        $this->assertArrayNotHasKey('multiplex', $node);
         $raw = json_decode($node['raw'], true, flags: JSON_THROW_ON_ERROR);
         $this->assertSame('edge', $raw['path-root']);
         $this->assertSame(['xpxvvpvv'], $raw['custom-tables']);
