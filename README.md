@@ -4,6 +4,9 @@
 
 ## 安装
 
+0.0.38 修正 Sudoku 复用字段，节点接口仅向声明 `X-XBClient-Protocols: sudoku` 的客户端下发 Sudoku。旧版客户端仍可获取其他节点；使用 Sudoku 需同时更新 Xboard 和 XBClient。
+节点使用用户 UUID 作为 `key`，并保留 AEAD、ASCII、填充、轮换表与 HTTPMask 字段。
+
 1. 将本插件目录放入 Xboard 的 `plugins/Xbclient`。
    - 管理后台显示名称是 `Xboard-XBClient`。
    - 插件 `code` 是 `xbclient`。
