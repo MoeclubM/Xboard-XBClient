@@ -15,8 +15,8 @@ use App\Services\Plugin\HookManager;
 use App\Services\ServerService;
 use App\Services\UserService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Plugin\Xbclient\Models\XbclientRewardLog;
@@ -102,10 +102,7 @@ class RewardController extends PluginController
             return $this->fail([500, '生成网页登录地址失败']);
         }
 
-        return $this->success($this->frontendBaseUrl() . '/api/v1/admob/web/plan-payment?' . http_build_query([
-            'verify' => $this->extractVerifyFromQuickLoginUrl($loginUrl),
-            'plan_id' => $planId,
-        ]));
+        return $this->success($loginUrl);
     }
 
     public function rewardHistory(Request $request): JsonResponse
@@ -184,24 +181,14 @@ class RewardController extends PluginController
         return $this->success(true);
     }
 
-    public function planPaymentBridge(Request $request): Response
+    public function planPaymentBridge(Request $request): RedirectResponse
     {
         $verify = trim((string) $request->query('verify'));
         $planId = (int) $request->query('plan_id');
-        $target = '/#/plan/' . $planId;
-        $html = '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>正在打开套餐</title></head><body><p>正在打开套餐支付页面...</p><script>'
-            . 'const verify=' . json_encode($verify, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ';'
-            . 'const target=' . json_encode($target, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . ';'
-            . 'const tokenKey="VUE_NAIVE_ACCESS_TOKEN";'
-            . 'localStorage.removeItem(tokenKey);'
-            . 'sessionStorage.removeItem(tokenKey);'
-            . 'fetch("/api/v1/passport/auth/token2Login?verify="+encodeURIComponent(verify),{headers:{Accept:"application/json"}})'
-            . '.then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.message||"网页登录失败");return body;})'
-            . '.then(body=>{const auth=body&&body.data&&body.data.auth_data;if(!auth)throw new Error("网页登录响应缺少 auth_data");localStorage.setItem(tokenKey,JSON.stringify({value:auth,time:Date.now(),expire:Date.now()+21600*1000}));location.replace(target);})'
-            . '.catch(error=>{document.body.textContent="套餐支付打开失败："+error.message;});'
-            . '</script></body></html>';
-
-        return response($html, 200)->header('Content-Type', 'text/html; charset=UTF-8');
+        return redirect()->away($this->frontendBaseUrl() . '/#/login?' . http_build_query([
+            'verify' => $verify,
+            'redirect' => 'plan/' . $planId,
+        ]));
     }
 
     public function ssv(Request $request): JsonResponse
@@ -638,16 +625,6 @@ class RewardController extends PluginController
         $slashPosition = strrpos($expectedAdUnit, '/');
         $expectedAdUnitTail = $slashPosition === false ? $expectedAdUnit : substr($expectedAdUnit, $slashPosition + 1);
         return $actualAdUnit === $expectedAdUnit || $actualAdUnit === $expectedAdUnitTail;
-    }
-
-    private function extractVerifyFromQuickLoginUrl(string $loginUrl): string
-    {
-        preg_match('/[?&]verify=([^&]+)/', $loginUrl, $matches);
-        if (empty($matches[1])) {
-            throw new \RuntimeException('快捷登录地址缺少 verify');
-        }
-
-        return urldecode($matches[1]);
     }
 
     private function frontendBaseUrl(): string

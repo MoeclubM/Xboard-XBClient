@@ -83,7 +83,7 @@ Authorization: Bearer <auth_data>
 
 SSV 通过后，插件只基于当前广告场景配置的礼品卡模板 ID 创建 `max_usage=1`、短有效期的临时兑换码，再调用 Xboard `GiftCardService` 为当前用户兑换，并确认兑换码已标记为当前用户使用一次。插件不直接记录或下发奖励内容，也不单独实现余额发放；余额、流量、套餐、有效期等奖励全部由原礼品卡模板决定。套餐激励广告兑换前会检查当前用户未封禁、未过期且剩余流量大于 0 的可用状态；当前套餐或流量包仍可用时直接拒绝并提示无法兑换广告套餐，避免覆盖现有套餐/流量包；流量已耗尽等订阅不可用状态不拦截兑换。
 
-网页支付开关只负责控制 App 是否允许跳转 Xboard 网页支付。开关开启时，App 点击套餐后调用 `/api/v1/admob/user/plan-payment` 生成一次性网页支付桥接地址，浏览器会写入当前 App 用户登录态并进入 `/#/plan/{plan_id}`；开关关闭时，App 不跳网页，只使用原版 `/api/v1/user/order/save` 与 `/api/v1/user/order/checkout` 完成余额足额抵扣订单。
+网页支付开关只负责控制 App 是否允许跳转 Xboard 网页支付。开关开启时，App 点击套餐后调用 `/api/v1/admob/user/plan-payment` 获取 Xboard 标准的一次性快捷登录地址，由当前网页前端完成登录并进入 `/#/plan/{plan_id}`；开关关闭时，App 不跳网页，只使用原版 `/api/v1/user/order/save` 与 `/api/v1/user/order/checkout` 完成余额足额抵扣订单。
 
 ## 接口排布与认证
 
