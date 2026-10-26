@@ -69,8 +69,8 @@ jobs:
           mkdir -p .interop/bin
           gh release download v0.1.47 --repo MoeclubM/NodeRS --pattern noders-v0.1.47-linux-amd64.tar.gz --dir .interop/bin
           tar -xzf .interop/bin/noders-v0.1.47-linux-amd64.tar.gz -C .interop/bin
-          gh release download --repo MetaCubeX/mihomo --pattern 'mihomo-linux-amd64-v1-*.gz' --dir .interop/bin
-          gzip -dc .interop/bin/mihomo-linux-amd64-v1-*.gz > .interop/bin/mihomo
+          gh release download --repo MetaCubeX/mihomo --pattern 'mihomo-linux-amd64-v1-v*.gz' --dir .interop/bin
+          gzip -dc .interop/bin/mihomo-linux-amd64-v1-v*.gz > .interop/bin/mihomo
           chmod +x .interop/bin/mihomo
       - name: Verify stock subscriptions through NodeRS with TCP and UDP
         run: python plugins/Xbclient/Tests/ss2022_interop.py
