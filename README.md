@@ -4,8 +4,6 @@
 
 ## 安装
 
-0.0.41 兼容原版 `cedar2025/Xboard` 的 SS-2022 ChaCha20 订阅：通过原有 `client.subscribe.servers` 插件接口，将原版生成的 `server_key:user_key` 修正为独立用户密钥。Clash／Mihomo、普通订阅和 XBClient 节点接口共用此处理，订阅地址不变，无需修改 Xboard 核心代码或使用分支版本。AES-128、AES-256 和已经正确的 ChaCha20 密钥保持原样。安装并启用插件即可生效，停用插件即恢复面板自身的行为。NodeRS 0.1.47 已支持这些密钥和多用户，无需为此更换节点版本。
-
 0.0.38 修正 Sudoku 复用字段，节点接口仅向声明 `X-XBClient-Protocols: sudoku` 的客户端下发 Sudoku。旧版客户端仍可获取其他节点；使用 Sudoku 需同时更新 Xboard 和 XBClient。
 节点使用用户 UUID 作为 `key`，并保留 AEAD、ASCII、填充、轮换表与 HTTPMask 字段。
 
