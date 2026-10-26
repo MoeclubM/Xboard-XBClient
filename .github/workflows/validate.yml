@@ -9,6 +9,10 @@ permissions:
 jobs:
   php:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        xboard: ['MoeclubM/Xboard', 'cedar2025/Xboard']
     services:
       redis:
         image: redis:7-alpine
@@ -35,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: MoeclubM/Xboard
+          repository: ${{ matrix.xboard }}
           ref: master
       - uses: actions/checkout@v4
         with:
@@ -47,4 +51,31 @@ jobs:
           tools: composer
       - run: composer install --no-interaction --prefer-dist
       - run: find plugins/Xbclient -name '*.php' -print0 | xargs -0 -n1 php -l
-      - run: vendor/bin/phpunit --bootstrap vendor/autoload.php plugins/Xbclient/Tests
+      - if: matrix.xboard == 'MoeclubM/Xboard'
+        run: vendor/bin/phpunit --bootstrap vendor/autoload.php plugins/Xbclient/Tests
+      - uses: actions/checkout@v4
+        with:
+          repository: MoeclubM/NodeRS
+          ref: v0.1.47
+          path: .interop/noders
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prepare real NodeRS and Mihomo clients
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python -m pip install pyyaml
+          mkdir -p .interop/bin
+          gh release download v0.1.47 --repo MoeclubM/NodeRS --pattern noders-v0.1.47-linux-amd64.tar.gz --dir .interop/bin
+          tar -xzf .interop/bin/noders-v0.1.47-linux-amd64.tar.gz -C .interop/bin
+          gh release download --repo MetaCubeX/mihomo --pattern 'mihomo-linux-amd64-v1-*.gz' --dir .interop/bin
+          gzip -dc .interop/bin/mihomo-linux-amd64-v1-*.gz > .interop/bin/mihomo
+          chmod +x .interop/bin/mihomo
+      - name: Verify stock subscriptions through NodeRS with TCP and UDP
+        run: python plugins/Xbclient/Tests/ss2022_interop.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ss2022-${{ strategy.job-index }}
+          path: .interop/results
