@@ -322,7 +322,7 @@ class RewardController extends PluginController
                 }
             }
         }
-        return FluxConfig::toClashClientProxy($password, $server);
+        return FluxConfig::toClientProxy($password, $server);
     }
 
 
